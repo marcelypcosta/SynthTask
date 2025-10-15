@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { RegisterData } from "../types/register";
+import { api, createCancel } from "@/lib/http";
 
 export default function useRegister() {
   const router = useRouter();
@@ -28,25 +29,12 @@ export default function useRegister() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/register`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(formData),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || "Falha ao registrar");
-      }
-
+      const { signal } = createCancel();
+      await api.post("/api/auth/register", formData, { signal });
       router.push("/sign-in");
     } catch (err: any) {
-      setError(err.message);
+      const message = err?.message || "Falha ao registrar";
+      setError(message);
     }
   };
 

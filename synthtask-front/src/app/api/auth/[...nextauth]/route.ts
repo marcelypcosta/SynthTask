@@ -1,5 +1,6 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { api } from "@/lib/http";
 
 const handler = NextAuth({
   secret: process.env.NEXTAUTH_SECRET,
@@ -15,33 +16,18 @@ const handler = NextAuth({
       },
       async authorize(credentials, req) {
         try {
-          const response = await fetch(
-            `${process.env.BACKEND_INTERNAL_URL || process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/login`,
-            {
-              method: "POST",
-              body: JSON.stringify({
-                email: credentials?.email,
-                password: credentials?.password,
-              }),
-              headers: { "Content-Type": "application/json" },
-            }
-          );
+          const { data } = await api.post("/api/auth/login", {
+            email: credentials?.email,
+            password: credentials?.password,
+          });
 
-          const authResponse = await response.json();
-
-          if (!response.ok) {
-            return null;
-          }
-
-          // A API retorna { token, user: { id, name, email, ... } }
-          const apiUser = authResponse?.user;
-          const apiToken = authResponse?.token;
+          const apiUser = data?.user;
+          const apiToken = data?.token;
 
           if (!apiUser) {
             return null;
           }
 
-          // Retorne no formato esperado pelo NextAuth
           return {
             id: apiUser.id,
             name: apiUser.name,
@@ -57,7 +43,6 @@ const handler = NextAuth({
   ],
   callbacks: {
     jwt: async ({ token, user }) => {
-      // Na autenticação inicial, propague os dados do usuário para o token JWT
       if (user) {
         const u: any = user;
         token.id = u.id;
@@ -68,13 +53,11 @@ const handler = NextAuth({
       return token;
     },
     session: async ({ session, token }) => {
-      // Garanta que session.user contenha id, name e email
       (session as any).user = {
         id: (token as any).id,
         name: (token as any).name,
         email: (token as any).email,
       };
-      // Opcional: anexar o accessToken na sessão para chamadas autenticadas do cliente
       (session as any).accessToken = (token as any).accessToken;
       return session;
     },

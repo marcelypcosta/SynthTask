@@ -91,28 +91,6 @@ services:
     networks:
       - sintask_network
 
-  # Frontend (React)
-  frontend:
-    build:
-      context: ../synthtask-front
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_BACKEND_URL: "http://localhost:8000"
-        BACKEND_INTERNAL_URL: "http://api:8000"
-    container_name: synthtask_frontend
-    restart: always
-    ports:
-      - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
-      - BACKEND_INTERNAL_URL=http://api:8000
-      - NEXTAUTH_URL=http://localhost:3000
-      - NEXTAUTH_SECRET=dev-secret-change-this
-    depends_on:
-      - api
-    networks:
-      - sintask_network
-
 volumes:
   mongodb_data:
     driver: local

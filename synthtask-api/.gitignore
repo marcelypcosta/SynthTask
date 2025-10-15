@@ -1,0 +1,102 @@
+# --- OS & IDE ---
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# VS Code
+.vscode/
+.history/
+
+# --- Global ---
+*.log
+*.tmp
+*.swp
+*.swo
+*.bak
+*.orig
+*.cache
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.env
+.env.*
+.env.local
+.pytest_cache/
+.mypy_cache/
+.pyre/
+coverage*/
+htmlcov/
+*.cover
+*.coverage
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Node / Frontend
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/
+.yarn-cache/
+.yarnrc
+.yarnrc.yml
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp.*
+# CRA / Vite / Next
+sintask-frontend/build/
+.sass-cache/
+*.tsbuildinfo
+
+# Docker
+**/.dockerignore
+# Exclude Docker build cache layers (if any tooling creates these locally)
+**/.docker/
+
+# Coverage/Reports
+reports/
+
+# Local data volumes (if any mapping outside docker named volumes)
+/data/
+/tmp/
+
+# Editors
+.idea/
+*.iml
+
+# Images/Artifacts (keep sources under version control if needed)
+*.tar
+*.zip
+
+# --- Project-specific ---
+# Backend compiled artifacts
+backend/__pycache__/
+backend/app/**/__pycache__/
+
+# Do not commit local db dumps or scratch files
+backend/*.sql
+backend/*.dump
+
+# Do not commit service credentials or private keys
+secrets*/
+*.key
+*.pem
+*.crt
+
+# Keep example env tracked (create if not exists)
+!.env.example

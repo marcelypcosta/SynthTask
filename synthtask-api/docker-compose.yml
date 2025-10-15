@@ -1,0 +1,124 @@
+
+
+services:
+  # MongoDB
+  mongodb:
+    image: mongo:7.0
+    container_name: sintask_mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: sintask_db
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - sintask_network
+
+  # PostgreSQL
+  postgres:
+    image: postgres:15
+    container_name: sintask_postgres
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: sintask
+      POSTGRES_USER: sintask
+      POSTGRES_PASSWORD: sintask123
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - sintask_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sintask -d sintask"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # API (FastAPI)
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: synthtask_api
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      # Use service names for internal network resolution
+      DATABASE_URL: postgresql://sintask:sintask123@postgres:5432/sintask
+      MONGODB_URL: mongodb://mongodb:27017
+      JWT_SECRET: dev-secret-change
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-AIzaSyB2vo8G5VSOVGx3VCFRUggaJ1VWMFMbxzU}
+    depends_on:
+        postgres:
+          condition: service_healthy
+        mongodb:
+          condition: service_started
+    networks:
+      - sintask_network
+
+  # Opcional: Mongo Express (Interface Web para MongoDB)
+  mongo-express:
+    image: mongo-express:latest
+    container_name: sintask_mongo_express
+    restart: always
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_URL: mongodb://mongodb:27017/
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: admin123
+    depends_on:
+      - mongodb
+    networks:
+      - sintask_network
+
+  # Opcional: pgAdmin (Interface Web para PostgreSQL)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: sintask_pgadmin
+    restart: always
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@sintask.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    depends_on:
+      - postgres
+    networks:
+      - sintask_network
+
+  # Frontend (React)
+  frontend:
+    build:
+      context: ../synthtask-front
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_BACKEND_URL: "http://localhost:8000"
+        BACKEND_INTERNAL_URL: "http://api:8000"
+    container_name: synthtask_frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+      - BACKEND_INTERNAL_URL=http://api:8000
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=dev-secret-change-this
+    depends_on:
+      - api
+    networks:
+      - sintask_network
+
+volumes:
+  mongodb_data:
+    driver: local
+  postgres_data:
+    driver: local
+
+networks:
+  sintask_network:
+    driver: bridge

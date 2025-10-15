@@ -38,7 +38,6 @@ export default function useSignIn() {
         setError("Credenciais inválidas. Por favor, tente novamente.");
       } else if (result?.ok) {
         router.push("/");
-        router.refresh();
       }
     } catch (error) {
       setError("Ocorreu um erro inesperado. Tente novamente mais tarde.");

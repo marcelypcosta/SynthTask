@@ -11,7 +11,7 @@ export default function SignInForm() {
     <form onSubmit={handleSubmit} className="space-y-4">
       <h2 className="text-xl mb-4">Login</h2>
 
-      {error && <p className="text-red">{error}</p>}
+      <p className="text-red-500">{error}</p>
 
       <div className="flex flex-col">
         <label htmlFor="email">Email</label>

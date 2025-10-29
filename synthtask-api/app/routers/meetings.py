@@ -1,7 +1,7 @@
 """
 Meeting and task management routes for the Sintask API
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from datetime import datetime
 from bson import ObjectId
 from typing import List
@@ -59,6 +59,69 @@ async def process_meeting(
             sent_to_trello=False
         )
         
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/process-file", response_model=ProcessedMeeting)
+async def process_meeting_file(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Process meeting text from uploaded file with AI"""
+    
+    # Validar extensão do arquivo
+    allowed_extensions = {'.txt', '.md', '.pdf'}
+    file_name = file.filename or ""
+    file_ext = '.' + file_name.split('.')[-1].lower() if '.' in file_name else ""
+    
+    if file_ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Formato não permitido. Use: {', '.join(allowed_extensions)}"
+        )
+    
+    try:
+        # Ler conteúdo do arquivo
+        content = await file.read()
+        text = content.decode('utf-8').strip()
+        
+        if not text:
+            raise HTTPException(status_code=400, detail="Arquivo vazio")
+        
+        # Process with AI
+        processed_data = ai_service.process_meeting_text(text)
+        
+        # Add IDs to tasks
+        for task in processed_data["tasks"]:
+            task["id"] = str(ObjectId())
+        
+        # Save to MongoDB
+        meeting_doc = {
+            "user_id": current_user["id"],
+            "original_text": text,
+            "file_name": file_name,
+            "summary": processed_data["summary"],
+            "key_points": processed_data["key_points"],
+            "tasks": processed_data["tasks"],
+            "created_at": datetime.utcnow(),
+            "sent_to_trello": False
+        }
+        
+        result = await meetings_collection.insert_one(meeting_doc)
+        meeting_id = str(result.inserted_id)
+        
+        return ProcessedMeeting(
+            id=meeting_id,
+            summary=processed_data["summary"],
+            key_points=processed_data["key_points"],
+            tasks=processed_data["tasks"],
+            created_at=meeting_doc["created_at"].isoformat(),
+            sent_to_trello=False
+        )
+        
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="Arquivo não é texto válido (UTF-8)")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -8,7 +8,7 @@ import {
   CardTitle,
   CardDescription,
   CardContent,
-} from "@/components/ui/card";
+} from "@/ui/card";
 import SignInForm from "@/feature/auth/components/sign-in-form";
 
 export default function SignInPage() {

@@ -7,7 +7,7 @@ import {
   CardTitle,
   CardDescription,
   CardContent,
-} from "@/components/ui/card";
+} from "@/ui/card";
 import RegisterForm from "@/feature/auth/components/register-form";
 
 export default function RegisterPage() {

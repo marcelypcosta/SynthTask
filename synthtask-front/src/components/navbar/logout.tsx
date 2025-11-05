@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { signOut } from "next-auth/react";
 import { Loader2, LogOutIcon } from "lucide-react";
-import { SidebarMenuButton } from "@/components/ui/sidebar";
+import { SidebarMenuButton } from "@/ui/sidebar";
 
 export default function LogoutButton() {
   const [loggingOut, setLoggingOut] = useState(false);

@@ -9,7 +9,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar";
+} from "@/ui/sidebar";
 import LogoutButton from "./logout";
 
 export function NavSecondary({

@@ -1,4 +1,4 @@
-import ToolIntegrationCard from "@/feature/connections/components/tool-integration-card";
+import ToolIntegrationCard from "@/components/connections/tool-integration-card";
 
 export default function ConnectionsPage() {
   return (

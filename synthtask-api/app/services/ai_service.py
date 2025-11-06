@@ -29,8 +29,9 @@ class AIService:
 Analise o seguinte texto de reunião e extraia as informações estruturadas.
 
 TEXTO DA REUNIÃO:
-```{text}```
+```
 {text}
+```
 
 Responda APENAS com um JSON válido no seguinte formato:
 {{
@@ -48,6 +49,7 @@ Responda APENAS com um JSON válido no seguinte formato:
 }}
 """
             
+            print(f"⏳ Enviando para Gemini (pode levar alguns segundos)...")
             response = self.model.generate_content(prompt)
             response_text = response.text.strip()
             
@@ -57,13 +59,18 @@ Responda APENAS com um JSON válido no seguinte formato:
             elif response_text.startswith("```"):
                 response_text = response_text.replace("```", "").strip()
             
+            print(f"📝 Resposta da IA recebida, parseando JSON...")
             result = json.loads(response_text)
-            print(f"✅ {len(result['tasks'])} tasks encontradas")
+            print(f"✅ {len(result['tasks'])} tasks encontradas com sucesso!")
             
             return result
             
+        except json.JSONDecodeError as e:
+            print(f"❌ Erro ao fazer parse do JSON: {e}")
+            print(f"   Resposta bruta: {response_text[:200]}...")
+            raise Exception(f"Erro ao processar resposta da IA: {str(e)}")
         except Exception as e:
-            print(f"❌ Erro: {e}")
+            print(f"❌ Erro ao processar com Gemini: {e}")
             raise Exception(f"Erro ao processar com Gemini: {str(e)}")
 
 

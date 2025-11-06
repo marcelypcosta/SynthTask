@@ -1,10 +1,8 @@
-
-
 services:
   # MongoDB
   mongodb:
     image: mongo:7.0
-    container_name: sintask_mongodb
+    container_name: synthtask_mongodb
     restart: always
     ports:
       - "27017:27017"
@@ -18,10 +16,10 @@ services:
   # PostgreSQL
   postgres:
     image: postgres:15
-    container_name: sintask_postgres
+    container_name: synthtask_postgres
     restart: always
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       POSTGRES_DB: sintask
       POSTGRES_USER: sintask
@@ -63,10 +61,10 @@ services:
   # Opcional: Mongo Express (Interface Web para MongoDB)
   mongo-express:
     image: mongo-express:latest
-    container_name: sintask_mongo_express
+    container_name: synthtask_mongo_express
     restart: always
     ports:
-      - "8081:8081"
+      - "8082:8081"
     environment:
       ME_CONFIG_MONGODB_URL: mongodb://mongodb:27017/
       ME_CONFIG_BASICAUTH_USERNAME: admin
@@ -79,10 +77,10 @@ services:
   # Opcional: pgAdmin (Interface Web para PostgreSQL)
   pgadmin:
     image: dpage/pgadmin4:latest
-    container_name: sintask_pgadmin
+    container_name: synthtask_pgadmin
     restart: always
     ports:
-      - "5050:80"
+      - "5051:80"
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@sintask.com
       PGADMIN_DEFAULT_PASSWORD: admin123

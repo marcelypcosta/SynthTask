@@ -1,8 +1,7 @@
 """
 Meeting and task management routes for the Sintask API
 """
-from fastapi import APIRouter, HTTPException, Depends
-from datetime import datetime
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from bson import ObjectId
 from typing import List
 
@@ -11,7 +10,11 @@ from ..models import (
     MessageResponse, SendToTrelloResponse, TrelloCardResponse
 )
 from ..core.auth import get_current_user
-from ..core.database import meetings_collection
+from ..core.utils import (
+    get_user_meeting, get_user_meetings, save_processed_meeting,
+    format_meeting_response, update_meeting_tasks, mark_meeting_sent_to_trello,
+    validate_trello_config, validate_object_id
+)
 from ..services.ai_service import ai_service
 from ..services.trello_service import trello_service
 
@@ -37,28 +40,69 @@ async def process_meeting(
             task["id"] = str(ObjectId())
         
         # Save to MongoDB
-        meeting_doc = {
-            "user_id": current_user["id"],
-            "original_text": meeting.text,
-            "summary": processed_data["summary"],
-            "key_points": processed_data["key_points"],
-            "tasks": processed_data["tasks"],
-            "created_at": datetime.utcnow(),
-            "sent_to_trello": False
-        }
-        
-        result = await meetings_collection.insert_one(meeting_doc)
-        meeting_id = str(result.inserted_id)
-        
-        return ProcessedMeeting(
-            id=meeting_id,
-            summary=processed_data["summary"],
-            key_points=processed_data["key_points"],
-            tasks=processed_data["tasks"],
-            created_at=meeting_doc["created_at"].isoformat(),
-            sent_to_trello=False
+        meeting_id = await save_processed_meeting(
+            current_user["id"],
+            meeting.text,
+            processed_data
         )
         
+        # Get saved meeting
+        saved_meeting = await get_user_meeting(meeting_id, current_user["id"])
+        
+        return format_meeting_response(saved_meeting, meeting_id)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/process-file", response_model=ProcessedMeeting)
+async def process_meeting_file(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Process meeting text from uploaded file with AI"""
+    
+    # Validar extensão do arquivo
+    allowed_extensions = {'.txt', '.md', '.pdf'}
+    file_name = file.filename or ""
+    file_ext = '.' + file_name.split('.')[-1].lower() if '.' in file_name else ""
+    
+    if file_ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Formato não permitido. Use: {', '.join(allowed_extensions)}"
+        )
+    
+    try:
+        # Ler conteúdo do arquivo
+        content = await file.read()
+        text = content.decode('utf-8').strip()
+        
+        if not text:
+            raise HTTPException(status_code=400, detail="Arquivo vazio")
+        
+        # Process with AI
+        processed_data = ai_service.process_meeting_text(text)
+        
+        # Add IDs to tasks
+        for task in processed_data["tasks"]:
+            task["id"] = str(ObjectId())
+        
+        # Save to MongoDB
+        meeting_id = await save_processed_meeting(
+            current_user["id"],
+            text,
+            processed_data,
+            file_name
+        )
+        
+        # Get saved meeting
+        saved_meeting = await get_user_meeting(meeting_id, current_user["id"])
+        
+        return format_meeting_response(saved_meeting, meeting_id)
+        
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="Arquivo não é texto válido (UTF-8)")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -67,8 +111,7 @@ async def process_meeting(
 async def get_meetings(current_user: dict = Depends(get_current_user)):
     """List all meetings for current user"""
     
-    cursor = meetings_collection.find({"user_id": current_user["id"]}).sort("created_at", -1)
-    meetings = await cursor.to_list(length=100)
+    meetings = await get_user_meetings(current_user["id"])
     
     return [
         {
@@ -86,22 +129,15 @@ async def get_meetings(current_user: dict = Depends(get_current_user)):
 async def get_meeting(meeting_id: str, current_user: dict = Depends(get_current_user)):
     """Get detailed meeting information"""
     
-    meeting = await meetings_collection.find_one({
-        "_id": ObjectId(meeting_id),
-        "user_id": current_user["id"]
-    })
+    if not validate_object_id(meeting_id):
+        raise HTTPException(status_code=400, detail="ID de reunião inválido")
+    
+    meeting = await get_user_meeting(meeting_id, current_user["id"])
     
     if not meeting:
         raise HTTPException(status_code=404, detail="Reunião não encontrada")
     
-    return ProcessedMeeting(
-        id=str(meeting["_id"]),
-        summary=meeting["summary"],
-        key_points=meeting["key_points"],
-        tasks=meeting["tasks"],
-        created_at=meeting["created_at"].isoformat(),
-        sent_to_trello=meeting.get("sent_to_trello", False)
-    )
+    return format_meeting_response(meeting, meeting_id)
 
 
 @router.put("/{meeting_id}/tasks/{task_id}", response_model=MessageResponse)
@@ -113,10 +149,10 @@ async def update_task(
 ):
     """Update a specific task"""
     
-    meeting = await meetings_collection.find_one({
-        "_id": ObjectId(meeting_id),
-        "user_id": current_user["id"]
-    })
+    if not validate_object_id(meeting_id):
+        raise HTTPException(status_code=400, detail="ID de reunião inválido")
+    
+    meeting = await get_user_meeting(meeting_id, current_user["id"])
     
     if not meeting:
         raise HTTPException(status_code=404, detail="Reunião não encontrada")
@@ -141,10 +177,7 @@ async def update_task(
     if not task_found:
         raise HTTPException(status_code=404, detail="Task não encontrada")
     
-    await meetings_collection.update_one(
-        {"_id": ObjectId(meeting_id)},
-        {"$set": {"tasks": tasks}}
-    )
+    await update_meeting_tasks(meeting_id, tasks)
     
     return MessageResponse(message="Task atualizada com sucesso")
 
@@ -157,10 +190,10 @@ async def delete_task(
 ):
     """Delete a task"""
     
-    meeting = await meetings_collection.find_one({
-        "_id": ObjectId(meeting_id),
-        "user_id": current_user["id"]
-    })
+    if not validate_object_id(meeting_id):
+        raise HTTPException(status_code=400, detail="ID de reunião inválido")
+    
+    meeting = await get_user_meeting(meeting_id, current_user["id"])
     
     if not meeting:
         raise HTTPException(status_code=404, detail="Reunião não encontrada")
@@ -168,10 +201,7 @@ async def delete_task(
     # Remove the task
     tasks = [t for t in meeting["tasks"] if t.get("id") != task_id]
     
-    await meetings_collection.update_one(
-        {"_id": ObjectId(meeting_id)},
-        {"$set": {"tasks": tasks}}
-    )
+    await update_meeting_tasks(meeting_id, tasks)
     
     return MessageResponse(message="Task deletada com sucesso")
 
@@ -184,14 +214,14 @@ async def send_to_trello(
     """Send selected tasks to Trello"""
     
     # Check Trello configuration
-    if not current_user["trello_api_key"] or not current_user["trello_token"] or not current_user["trello_list_id"]:
+    if not validate_trello_config(current_user):
         raise HTTPException(status_code=400, detail="Configure suas credenciais do Trello primeiro")
     
+    if not validate_object_id(request.meeting_id):
+        raise HTTPException(status_code=400, detail="ID de reunião inválido")
+    
     # Get meeting
-    meeting = await meetings_collection.find_one({
-        "_id": ObjectId(request.meeting_id),
-        "user_id": current_user["id"]
-    })
+    meeting = await get_user_meeting(request.meeting_id, current_user["id"])
     
     if not meeting:
         raise HTTPException(status_code=404, detail="Reunião não encontrada")
@@ -218,10 +248,7 @@ async def send_to_trello(
                 print(f"Erro ao criar card: {e}")
     
     # Update status
-    await meetings_collection.update_one(
-        {"_id": ObjectId(request.meeting_id)},
-        {"$set": {"sent_to_trello": True}}
-    )
+    await mark_meeting_sent_to_trello(request.meeting_id)
     
     return SendToTrelloResponse(
         message=f"{len(trello_cards)} cards criados no Trello",

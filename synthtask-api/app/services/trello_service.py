@@ -48,6 +48,40 @@ class TrelloService:
         
         return response.json()
 
+    @staticmethod
+    def get_boards_and_lists(api_key: str, token: str) -> Dict[str, Any]:
+        """Return a structure with boards and their lists for the given Trello credentials.
+
+        Returns:
+            {"boards": [{"id": "...", "name": "...", "lists": [{"id":"..","name":"..."}, ...]}, ...]}
+        """
+        base = "https://api.trello.com/1"
+        # Get boards for the member 'me'
+        boards_url = f"{base}/members/me/boards"
+        params = {"key": api_key, "token": token, "fields": "id,name"}
+        resp = requests.get(boards_url, params=params)
+        if resp.status_code != 200:
+            raise HTTPException(status_code=400, detail=f"Erro ao listar boards: {resp.text}")
+
+        boards = resp.json()
+        result = {"boards": []}
+
+        for b in boards:
+            # For each board get lists
+            lists_url = f"{base}/boards/{b['id']}/lists"
+            resp_lists = requests.get(lists_url, params={"key": api_key, "token": token, "fields": "id,name"})
+            if resp_lists.status_code != 200:
+                # skip this board if lists can't be fetched
+                continue
+            lists = resp_lists.json()
+            result["boards"].append({
+                "id": b["id"],
+                "name": b.get("name"),
+                "lists": [{"id": l["id"], "name": l.get("name")} for l in lists]
+            })
+
+        return result
+
 
 # Global Trello service instance
 trello_service = TrelloService()

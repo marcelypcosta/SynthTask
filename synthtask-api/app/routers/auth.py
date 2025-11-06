@@ -6,6 +6,11 @@ from fastapi import APIRouter, HTTPException, Depends
 from ..models import UserRegister, UserLogin, User, TrelloConfig, AuthResponse, MessageResponse
 from ..core.auth import hash_password, verify_password, create_access_token, get_current_user
 from ..core.database import database, users_table
+from ..core.utils import (
+    get_user_by_email, get_user_by_id, format_user_response,
+    update_user_field, validate_trello_config
+)
+from ..services.trello_service import trello_service
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
@@ -15,8 +20,7 @@ async def register(user_data: UserRegister):
     """Register a new user"""
     
     # Check if email already exists
-    query = users_table.select().where(users_table.c.email == user_data.email)
-    existing_user = await database.fetch_one(query)
+    existing_user = await get_user_by_email(user_data.email)
     
     if existing_user:
         raise HTTPException(status_code=400, detail="Email já cadastrado")
@@ -46,8 +50,7 @@ async def register(user_data: UserRegister):
 async def login(credentials: UserLogin):
     """Login user"""
     
-    query = users_table.select().where(users_table.c.email == credentials.email)
-    user = await database.fetch_one(query)
+    user = await get_user_by_email(credentials.email)
     
     if not user or not verify_password(credentials.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Email ou senha inválidos")
@@ -56,28 +59,14 @@ async def login(credentials: UserLogin):
     
     return AuthResponse(
         token=token,
-        user=User(
-            id=user.id,
-            email=user.email,
-            name=user.name,
-            trello_api_key=user.trello_api_key,
-            trello_token=user.trello_token,
-            trello_list_id=user.trello_list_id
-        )
+        user=format_user_response(user)
     )
 
 
 @router.get("/me", response_model=User)
 async def get_me(current_user: dict = Depends(get_current_user)):
     """Get current authenticated user data"""
-    return User(
-        id=current_user["id"],
-        email=current_user["email"],
-        name=current_user["name"],
-        trello_api_key=current_user["trello_api_key"],
-        trello_token=current_user["trello_token"],
-        trello_list_id=current_user["trello_list_id"]
-    )
+    return format_user_response(current_user)
 
 
 @router.put("/trello-config", response_model=MessageResponse)
@@ -87,14 +76,26 @@ async def update_trello_config(
 ):
     """Update Trello configuration for current user"""
     
-    query = users_table.update().where(
-        users_table.c.id == current_user["id"]
-    ).values(
+    await update_user_field(
+        current_user["id"],
         trello_api_key=config.trello_api_key,
         trello_token=config.trello_token,
         trello_list_id=config.trello_list_id
     )
     
-    await database.execute(query)
-    
     return MessageResponse(message="Configurações do Trello atualizadas")
+
+
+@router.get('/trello-lists')
+async def get_trello_lists(current_user: dict = Depends(get_current_user)):
+    """Return boards and lists for the current user's stored Trello credentials."""
+    if not validate_trello_config(current_user):
+        raise HTTPException(status_code=400, detail="Configure suas credenciais do Trello primeiro")
+
+    try:
+        lists = trello_service.get_boards_and_lists(current_user["trello_api_key"], current_user["trello_token"])
+        return lists
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -23,7 +23,7 @@ class Settings:
     JWT_EXPIRATION_DAYS: int = 7
     
     # CORS Settings
-    CORS_ORIGINS: list = ["*"]
+    CORS_ORIGINS: list = ["http://localhost:3001", "http://localhost:3000"]
     
     # Server Settings
     HOST: str = os.getenv("HOST", "0.0.0.0")

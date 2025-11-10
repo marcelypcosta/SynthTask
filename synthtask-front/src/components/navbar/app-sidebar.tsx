@@ -20,6 +20,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarTrigger,
 } from "@/ui/sidebar";
 
 import { NavMain } from "@/components/navbar/nav-main";
@@ -67,7 +68,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <SidebarMenu>
+        <SidebarMenu className="flex flex-row justify-between items-center">
           <SidebarMenuItem className="flex items-center gap-2">
             <div className="bg-primary text-primary-foreground p-1.5 rounded-md">
               <Zap className="!size-5" />
@@ -77,6 +78,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <span className="text-xs text-muted-foreground">Automação Inteligente</span>
             </div>
           </SidebarMenuItem>
+          <SidebarTrigger className="ml-2"/>
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>

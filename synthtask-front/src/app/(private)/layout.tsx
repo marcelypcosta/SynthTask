@@ -9,7 +9,7 @@ export default function PrivateLayout({
   return (
     <SidebarProvider>
       <AppSidebar />
-      <main className="w-full flex flex-col justify-start items-start h-screen p-4">
+      <main className="w-full flex flex-col justify-start items-start h-screen p-6">
         <SidebarTrigger className="sm:hidden" />
         {children}
       </main>

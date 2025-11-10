@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 import {
   Card,
@@ -7,7 +7,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/ui/card";
-import OpenProjectDetailsButton from "@/feature/projects/components/open-project-details-button";
+import { Button } from "@/ui/button";
+import { View } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 interface NewProjectCardProps {
   id: number;
@@ -22,6 +24,12 @@ export default function NewProjectCard({
   boardName,
   toolName,
 }: NewProjectCardProps) {
+  const router = useRouter();
+
+  const handleRedirect = (id: number) => {
+    router.push(`/projects/${id}`);
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -31,7 +39,9 @@ export default function NewProjectCard({
         </CardDescription>
       </CardHeader>
       <CardFooter>
-        <OpenProjectDetailsButton id={id} />
+        <Button className="w-full" onClick={() => handleRedirect(id)}>
+          <View /> Ver projeto
+        </Button>
       </CardFooter>
     </Card>
   );

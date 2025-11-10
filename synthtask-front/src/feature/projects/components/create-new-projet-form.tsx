@@ -30,9 +30,9 @@ export default function CreateNewProjectForm() {
           </Select>
         </Field>
         <Field orientation="responsive">
-          <Button type="submit">Submit</Button>
+          <Button type="submit">Criar</Button>
           <Button variant="outline" type="button">
-            Cancel
+            Cancelar
           </Button>
         </Field>
       </FieldGroup>

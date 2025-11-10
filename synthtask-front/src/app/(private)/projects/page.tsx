@@ -1,7 +1,15 @@
-'use client'
+"use client";
 
 import NewProjectCard from "@/components/projects/new-project-card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/ui/dialog";
 import CreateNewProjectButton from "@/feature/projects/components/create-new-project-button";
+import CreateNewProjectForm from "@/feature/projects/components/create-new-projet-form";
 
 interface IProjectCard {
   id: number;
@@ -33,7 +41,7 @@ const projects: IProjectCard[] = [
 
 export default function MyProjectsPage() {
   return (
-    <>
+    <Dialog>
       <header className="w-full flex justify-between items-center mb-6">
         <div>
           <h1 className="text-3xl font-semibold text-neutral-800 mt-2">
@@ -56,6 +64,16 @@ export default function MyProjectsPage() {
           />
         ))}
       </div>
-    </>
+
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Criar Novo Projeto</DialogTitle>
+          <DialogDescription>
+            Preencha os campos abaixo para criar um novo projeto.
+          </DialogDescription>
+        </DialogHeader>
+        <CreateNewProjectForm />
+      </DialogContent>
+    </Dialog>
   );
 }

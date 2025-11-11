@@ -12,7 +12,7 @@ export default function BackButton() {
   return (
     <Button
       onClick={() => router.push("/projects")}
-      variant="outline"
+      variant="ghost"
       className="flex items-center gap-2"
     >
       <ArrowLeft size={18} />

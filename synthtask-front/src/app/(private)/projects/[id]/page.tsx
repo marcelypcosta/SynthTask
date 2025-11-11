@@ -59,16 +59,13 @@ export default function ProjectDetailPage({
 
   return (
     <div className="pb-4">
+      <BackButton />
       <div className="my-4">
         <Breadcrumb>
           <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/projects">Meus Projetos</BreadcrumbLink>
-            </BreadcrumbItem>
+            <BreadcrumbItem>Meus Projetos</BreadcrumbItem>
             <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/components">Projeto {id}</BreadcrumbLink>
-            </BreadcrumbItem>
+            <BreadcrumbItem>Projeto {id}</BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
       </div>

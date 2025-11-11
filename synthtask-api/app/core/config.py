@@ -1,5 +1,5 @@
 """
-Configuration settings for the Sintask application
+Configurações da aplicação Sintask.
 """
 import os
 from typing import Optional
@@ -21,6 +21,9 @@ class Settings:
     JWT_SECRET: str = os.getenv("JWT_SECRET", "your-secret-key-change-in-production")
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRATION_DAYS: int = 7
+
+    # Encryption secret for credential storage (defaults to JWT_SECRET)
+    ENCRYPTION_SECRET: str = os.getenv("ENCRYPTION_SECRET", JWT_SECRET)
     
     # CORS Settings
     CORS_ORIGINS: list = ["http://localhost:3001", "http://localhost:3000"]

@@ -1,5 +1,5 @@
 """
-Meeting and task management routes for the Sintask API
+Rotas de gestão de reuniões e tarefas da Sintask API
 """
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from bson import ObjectId
@@ -13,10 +13,10 @@ from ..core.auth import get_current_user
 from ..core.utils import (
     get_user_meeting, get_user_meetings, save_processed_meeting,
     format_meeting_response, update_meeting_tasks, mark_meeting_sent_to_trello,
-    validate_trello_config, validate_object_id
+    validate_object_id
 )
 from ..services.ai_service import ai_service
-from ..services.trello_service import trello_service
+from app.modules.integrations.registry import get_integration
 
 router = APIRouter(prefix="/api/meetings", tags=["Meetings"])
 
@@ -109,7 +109,7 @@ async def process_meeting_file(
 
 @router.get("", response_model=List[dict])
 async def get_meetings(current_user: dict = Depends(get_current_user)):
-    """List all meetings for current user"""
+    """Listar todas as reuniões do usuário atual"""
     
     meetings = await get_user_meetings(current_user["id"])
     
@@ -211,11 +211,7 @@ async def send_to_trello(
     request: SendToTrelloRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    """Send selected tasks to Trello"""
-    
-    # Check Trello configuration
-    if not validate_trello_config(current_user):
-        raise HTTPException(status_code=400, detail="Configure suas credenciais do Trello primeiro")
+    """Envia tasks selecionadas para o Trello usando o novo adapter."""
     
     if not validate_object_id(request.meeting_id):
         raise HTTPException(status_code=400, detail="ID de reunião inválido")
@@ -226,23 +222,34 @@ async def send_to_trello(
     if not meeting:
         raise HTTPException(status_code=404, detail="Reunião não encontrada")
     
-    # Send selected tasks
+    service = get_integration("trello")
+    # Credenciais devem estar salvas via /api/integrations/trello/connect e conter list_id
+    creds = await service.get_user_credentials(current_user["id"])  # type: ignore
+    list_id = creds.get("list_id")
+    if not list_id:
+        raise HTTPException(status_code=400, detail="Defina 'list_id' nas credenciais do Trello.")
+    
     trello_cards = []
     for task_data in meeting["tasks"]:
         if task_data.get("id") in request.task_ids:
             task = Task(**task_data)
             try:
-                card = trello_service.create_card(
-                    task,
-                    current_user["trello_api_key"],
-                    current_user["trello_token"],
-                    current_user["trello_list_id"]
+                result = await service.create_task(
+                    user_id=current_user["id"],  # type: ignore
+                    target_id=list_id,
+                    task={
+                        "title": task.title,
+                        "description": task.description,
+                        "priority": task.priority,
+                        "assignee": task.assignee,
+                        "due_date": task.due_date,
+                    },
                 )
                 trello_cards.append(TrelloCardResponse(
                     task_id=task_data.get("id"),
-                    card_id=card["id"],
-                    card_url=card["url"],
-                    card_name=card["name"]
+                    card_id=result.get("id"),
+                    card_url=result.get("url"),
+                    card_name=result.get("name"),
                 ))
             except Exception as e:
                 print(f"Erro ao criar card: {e}")

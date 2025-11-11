@@ -1,0 +1,82 @@
+"""
+Integração Trello implementando o adaptador IntegrationService.
+"""
+import requests
+from typing import Any, Dict, List
+from fastapi import HTTPException
+
+from app.modules.integrations.base import IntegrationService
+from app.modules.integrations.storage import IntegrationStorage
+
+
+class TrelloService(IntegrationService):
+    provider_name = "trello"
+    capabilities = ["boards", "lists", "create_task"]
+
+    BASE_URL = "https://api.trello.com/1"
+
+    def __init__(self):
+        self.storage = IntegrationStorage(provider=self.provider_name)
+
+    async def save_credentials(self, user_id: int, payload: Dict[str, Any]) -> None:
+        required = ["api_key", "token"]
+        for r in required:
+            if r not in payload:
+                raise HTTPException(status_code=400, detail=f"Campo ausente: {r}")
+        await self.storage.save(user_id, payload)
+
+    async def get_user_credentials(self, user_id: int) -> Dict[str, Any]:
+        creds = await self.storage.get(user_id)
+        if not creds or "api_key" not in creds or "token" not in creds:
+            raise HTTPException(status_code=400, detail="Credenciais Trello não configuradas")
+        return creds
+
+    async def get_boards(self, user_id: int) -> List[Dict[str, Any]]:
+        creds = await self.get_user_credentials(user_id)
+        url = f"{self.BASE_URL}/members/me/boards"
+        params = {"key": creds["api_key"], "token": creds["token"], "fields": "id,name"}
+        resp = requests.get(url, params=params)
+        if resp.status_code != 200:
+            raise HTTPException(status_code=400, detail=f"Erro ao listar boards: {resp.text}")
+        return resp.json()
+
+    async def get_lists(self, user_id: int, board_id: str) -> List[Dict[str, Any]]:
+        creds = await self.get_user_credentials(user_id)
+        url = f"{self.BASE_URL}/boards/{board_id}/lists"
+        params = {"key": creds["api_key"], "token": creds["token"], "fields": "id,name"}
+        resp = requests.get(url, params=params)
+        if resp.status_code != 200:
+            raise HTTPException(status_code=400, detail=f"Erro ao listar listas: {resp.text}")
+        return resp.json()
+
+    async def create_task(self, user_id: int, target_list_id: str, task_data: Dict[str, Any]) -> Dict[str, Any]:
+        creds = await self.get_user_credentials(user_id)
+        url = f"{self.BASE_URL}/cards"
+        # Build description with emojis similar to legacy service
+        description = (task_data.get("description") or "") + "\n\n"
+        priority = task_data.get("priority")
+        if priority:
+            emoji = "🔴" if priority == "Alta" else "🟡" if priority == "Média" else "🟢"
+            description += f"{emoji} **Prioridade:** {priority}\n"
+        assignee = task_data.get("assignee")
+        if assignee:
+            description += f"👤 **Responsável:** {assignee}\n"
+        due_date = task_data.get("due_date")
+        if due_date:
+            description += f"📅 **Prazo:** {due_date}\n"
+        description += "\n---\n_Criado pelo SynthTask_"
+
+        params = {
+            "key": creds["api_key"],
+            "token": creds["token"],
+            "idList": target_list_id,
+            "name": task_data.get("title", "Tarefa"),
+            "desc": description,
+        }
+        if due_date:
+            params["due"] = due_date
+
+        resp = requests.post(url, params=params)
+        if resp.status_code != 200:
+            raise HTTPException(status_code=400, detail=f"Erro ao criar card: {resp.text}")
+        return resp.json()

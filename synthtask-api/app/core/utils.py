@@ -1,6 +1,6 @@
 """
-Core utility functions for database operations and response formatting
-Centralizes all database queries and model conversions
+Funções utilitárias centrais para operações de banco de dados e formatação de respostas.
+Centraliza consultas ao banco e conversões de modelos.
 """
 from typing import Dict, Optional
 from bson import ObjectId
@@ -16,13 +16,13 @@ from ..models import User, ProcessedMeeting, Task
 
 async def get_user_by_email(email: str) -> Optional[Dict]:
     """
-    Fetch user from database by email address.
+    Buscar usuário no banco de dados pelo e-mail.
     
     Args:
-        email: User email address
+        email: Endereço de e-mail do usuário
         
     Returns:
-        User dictionary from database or None if not found
+        Dicionário do usuário no banco ou None se não encontrado
     """
     query = users_table.select().where(users_table.c.email == email)
     return await database.fetch_one(query)
@@ -30,13 +30,13 @@ async def get_user_by_email(email: str) -> Optional[Dict]:
 
 async def get_user_by_id(user_id: int) -> Optional[Dict]:
     """
-    Fetch user from database by ID.
+    Buscar usuário no banco de dados pelo ID.
     
     Args:
-        user_id: User ID
+        user_id: ID do usuário
         
     Returns:
-        User dictionary from database or None if not found
+        Dicionário do usuário no banco ou None se não encontrado
     """
     query = users_table.select().where(users_table.c.id == user_id)
     return await database.fetch_one(query)
@@ -44,14 +44,14 @@ async def get_user_by_id(user_id: int) -> Optional[Dict]:
 
 async def update_user_field(user_id: int, **fields) -> None:
     """
-    Update specific user fields in database.
+    Atualizar campos específicos do usuário no banco de dados.
     
     Args:
-        user_id: User ID
-        **fields: Key-value pairs of fields to update
+        user_id: ID do usuário
+        **fields: Pares chave-valor dos campos a atualizar
         
-    Example:
-        await update_user_field(1, trello_api_key="xxx", trello_token="yyy")
+    Exemplo:
+        await update_user_field(1, name="Novo Nome")
     """
     query = users_table.update().where(
         users_table.c.id == user_id
@@ -65,22 +65,18 @@ async def update_user_field(user_id: int, **fields) -> None:
 
 def format_user_response(user_data: Dict) -> User:
     """
-    Convert database user dictionary to User Pydantic model.
-    Handles all optional Trello fields gracefully.
+    Converter dicionário de usuário do banco para modelo Pydantic User.
     
     Args:
-        user_data: Raw user dictionary from database
+        user_data: Dicionário cru do usuário vindo do banco
         
     Returns:
-        User Pydantic model instance
+        Instância do modelo Pydantic User
     """
     return User(
         id=user_data["id"],
         email=user_data["email"],
         name=user_data["name"],
-        trello_api_key=user_data.get("trello_api_key"),
-        trello_token=user_data.get("trello_token"),
-        trello_list_id=user_data.get("trello_list_id"),
     )
 
 
@@ -90,18 +86,18 @@ def format_user_response(user_data: Dict) -> User:
 
 async def get_user_meeting(meeting_id: str, user_id: int) -> Optional[Dict]:
     """
-    Fetch meeting from MongoDB by ID with ownership validation.
-    Ensures user can only access their own meetings.
+    Buscar reunião no MongoDB por ID com validação de propriedade.
+    Garante que o usuário só acesse suas próprias reuniões.
     
     Args:
-        meeting_id: MongoDB meeting ObjectId as string
-        user_id: User ID for ownership check
+        meeting_id: ObjectId da reunião no MongoDB como string
+        user_id: ID do usuário para checagem de propriedade
         
     Returns:
-        Meeting dictionary from MongoDB or None if not found
+        Dicionário da reunião no MongoDB ou None se não encontrada
         
     Raises:
-        Exception: If meeting_id is not a valid MongoDB ObjectId
+        Exception: Se meeting_id não for um ObjectId válido
     """
     try:
         return await meetings_collection.find_one({
@@ -114,14 +110,14 @@ async def get_user_meeting(meeting_id: str, user_id: int) -> Optional[Dict]:
 
 async def get_user_meetings(user_id: int, limit: int = 100) -> list[Dict]:
     """
-    Fetch all meetings for a user, sorted by creation date (newest first).
+    Buscar todas as reuniões de um usuário, ordenadas por criação (mais novas primeiro).
     
     Args:
-        user_id: User ID
-        limit: Maximum number of meetings to return
+        user_id: ID do usuário
+        limit: Número máximo de reuniões a retornar
         
     Returns:
-        List of meeting dictionaries from MongoDB
+        Lista de dicionários de reuniões do MongoDB
     """
     cursor = meetings_collection.find({"user_id": user_id}).sort("created_at", -1)
     return await cursor.to_list(length=limit)
@@ -134,24 +130,24 @@ async def save_processed_meeting(
     file_name: Optional[str] = None
 ) -> str:
     """
-    Save a processed meeting to MongoDB.
-    Centralizes meeting document structure to prevent inconsistencies.
+    Salvar uma reunião processada no MongoDB.
+    Centraliza a estrutura do documento de reunião para evitar inconsistências.
     
     Args:
-        user_id: User ID (owner)
-        original_text: Original meeting text/content
-        processed_data: Dictionary containing 'summary', 'key_points', 'tasks'
-        file_name: Optional original filename if uploaded
+        user_id: ID do usuário (proprietário)
+        original_text: Texto/conteúdo original da reunião
+        processed_data: Dicionário contendo 'summary', 'key_points', 'tasks'
+        file_name: Nome do arquivo original opcional, se enviado
         
     Returns:
-        MongoDB ObjectId as string (meeting_id)
+        ObjectId do MongoDB como string (meeting_id)
         
-    Example:
+    Exemplo:
         meeting_id = await save_processed_meeting(
             user_id=1,
-            original_text="Meeting notes...",
+            original_text="Notas da reunião...",
             processed_data={"summary": "...", "key_points": [...], "tasks": [...]},
-            file_name="meeting.txt"
+            file_name="reuniao.txt"
         )
     """
     meeting_doc = {
@@ -173,11 +169,11 @@ async def save_processed_meeting(
 
 async def update_meeting_tasks(meeting_id: str, tasks: list[Dict]) -> None:
     """
-    Update the tasks array in a meeting document.
+    Atualizar o array de tasks em um documento de reunião.
     
     Args:
-        meeting_id: MongoDB meeting ObjectId as string
-        tasks: New list of task dictionaries
+        meeting_id: ObjectId da reunião no MongoDB como string
+        tasks: Nova lista de dicionários de tarefas
     """
     await meetings_collection.update_one(
         {"_id": ObjectId(meeting_id)},
@@ -187,10 +183,10 @@ async def update_meeting_tasks(meeting_id: str, tasks: list[Dict]) -> None:
 
 async def mark_meeting_sent_to_trello(meeting_id: str) -> None:
     """
-    Mark a meeting as sent to Trello (update sent_to_trello flag).
+    Marcar uma reunião como enviada ao Trello (atualiza a flag sent_to_trello).
     
     Args:
-        meeting_id: MongoDB meeting ObjectId as string
+        meeting_id: ObjectId da reunião no MongoDB como string
     """
     await meetings_collection.update_one(
         {"_id": ObjectId(meeting_id)},
@@ -207,14 +203,14 @@ def format_meeting_response(
     meeting_id: Optional[str] = None
 ) -> ProcessedMeeting:
     """
-    Convert MongoDB meeting document to ProcessedMeeting Pydantic model.
+    Converter documento de reunião do MongoDB para o modelo Pydantic ProcessedMeeting.
     
     Args:
-        meeting_data: Raw meeting dictionary from MongoDB
-        meeting_id: Optional override for meeting ID (if not in data as _id)
+        meeting_data: Dicionário cru da reunião vindo do MongoDB
+        meeting_id: Sobrescrita opcional para o ID da reunião (se não estiver como _id)
         
     Returns:
-        ProcessedMeeting Pydantic model instance
+        Instância do modelo Pydantic ProcessedMeeting
     """
     if not meeting_id:
         meeting_id = str(meeting_data.get("_id", ""))
@@ -233,32 +229,18 @@ def format_meeting_response(
 # VALIDATION HELPERS
 # ============================================================================
 
-def validate_trello_config(user: Dict) -> bool:
-    """
-    Validate that user has all required Trello configuration.
-    
-    Args:
-        user: User dictionary from database
-        
-    Returns:
-        True if all Trello fields are configured, False otherwise
-    """
-    return bool(
-        user.get("trello_api_key") and
-        user.get("trello_token") and
-        user.get("trello_list_id")
-    )
+# Legacy helper removed: Trello config lives in integration storage now
 
 
 def validate_object_id(obj_id: str) -> bool:
     """
-    Validate if string is a valid MongoDB ObjectId.
+    Validar se a string é um ObjectId válido do MongoDB.
     
     Args:
-        obj_id: String to validate as ObjectId
+        obj_id: String a validar como ObjectId
         
     Returns:
-        True if valid ObjectId format, False otherwise
+        True se formato válido de ObjectId, False caso contrário
     """
     try:
         ObjectId(obj_id)

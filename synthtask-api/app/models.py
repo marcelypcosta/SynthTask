@@ -21,9 +21,6 @@ class User(BaseModel):
     id: int
     email: str
     name: str
-    trello_api_key: Optional[str] = None
-    trello_token: Optional[str] = None
-    trello_list_id: Optional[str] = None
 
 
 class TrelloConfig(BaseModel):

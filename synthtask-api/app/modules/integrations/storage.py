@@ -41,3 +41,13 @@ class IntegrationStorage:
             return json.loads(decrypt(row["data_encrypted"]))
         except Exception:
             return {}
+
+    async def delete(self, user_id: int) -> None:
+        """
+        Remove credenciais armazenadas para este usuário/provedor.
+        """
+        query = integration_credentials.delete().where(
+            (integration_credentials.c.user_id == user_id)
+            & (integration_credentials.c.provider == self.provider)
+        )
+        await database.execute(query)

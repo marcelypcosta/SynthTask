@@ -1,0 +1,111 @@
+import { api, AxiosRequestError } from "@/lib/http";
+import type { Provider } from "@/types/providers";
+
+
+export function toProvider(toolName: string): Provider {
+  const key = toolName.trim().toLowerCase();
+  if (key.includes("trello")) return "trello";
+  if (key.includes("jira")) return "jira";
+  throw new Error(`Ferramenta não suportada: ${toolName}`);
+}
+
+export async function checkConnected(provider: Provider): Promise<boolean> {
+  try {
+    const { data } = await api.get(`/api/integrations/${provider}/status`);
+    return Boolean(data?.connected);
+  } catch (e) {
+    const err = e as AxiosRequestError;
+    if (err.status === 400 || err.status === 401) return false;
+    return false;
+  }
+}
+
+export async function connectProvider(
+  provider: Provider,
+  credentials: Record<string, unknown>
+): Promise<void> {
+  try {
+    await api.post(`/api/integrations/${provider}/connect`, credentials);
+  } catch (e) {
+    const err = e as AxiosRequestError;
+    throw new Error(err.message || "Falha ao conectar provedor");
+  }
+}
+
+export async function disconnectProvider(provider: Provider): Promise<void> {
+  try {
+    await api.delete(`/api/integrations/${provider}/connect`);
+  } catch (e) {
+    const err = e as AxiosRequestError;
+    throw new Error(err.message || "Falha ao desconectar provedor");
+  }
+}
+
+export async function listTargets(provider: Provider): Promise<unknown> {
+  const { data } = await api.get(`/api/integrations/${provider}/targets`);
+  return data;
+}
+
+export function getTrelloAuthUrl(origin: string): string {
+  const apiKey = process.env.NEXT_PUBLIC_TRELLO_API_KEY;
+  if (!apiKey) {
+    throw new Error("NEXT_PUBLIC_TRELLO_API_KEY não configurada");
+  }
+
+  const appName = encodeURIComponent("SynthTask");
+  const scope = encodeURIComponent("read,write");
+  const expiration = "never";
+  const responseType = "token";
+  const returnUrl =
+    process.env.NEXT_PUBLIC_TRELLO_RETURN_URL ||
+    `${origin}/trello/callback`;
+
+  return `https://trello.com/1/authorize?key=${apiKey}&name=${appName}&scope=${scope}&expiration=${expiration}&response_type=${responseType}&return_url=${encodeURIComponent(
+    returnUrl
+  )}`;
+}
+
+export function getJiraAuthUrl(origin: string): string {
+  const clientId = process.env.NEXT_PUBLIC_JIRA_CLIENT_ID;
+  if (!clientId) {
+    throw new Error("NEXT_PUBLIC_JIRA_CLIENT_ID não configurada");
+  }
+
+  const audience = "api.atlassian.com";
+  const scopes = [
+    "read:jira-work",
+    "read:issue:jira",
+    "write:issue:jira",
+    "read:user:jira",
+    "read:project:jira",
+    "read:project.property:jira",
+    "read:application-role:jira",
+    "read:issue-type:jira",
+    "offline_access",
+  ].join(" ");
+
+  const redirectUri =
+    process.env.NEXT_PUBLIC_JIRA_REDIRECT_URI ||
+    `${origin}/api/auth/callback/jira`;
+
+  const state =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2);
+
+  const authBase =
+    process.env.NEXT_PUBLIC_JIRA_AUTH_URL ||
+    "https://auth.atlassian.com/authorize";
+
+  const url = `${authBase}?audience=${encodeURIComponent(
+    audience
+  )}&client_id=${encodeURIComponent(clientId)}&scope=${encodeURIComponent(
+    scopes
+  )}&redirect_uri=${encodeURIComponent(
+    redirectUri
+  )}&state=${encodeURIComponent(
+    state
+  )}&response_type=code&prompt=consent`;
+
+  return url;
+}

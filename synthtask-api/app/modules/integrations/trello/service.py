@@ -1,3 +1,5 @@
+# Classe: TrelloService
+# Seções: Helpers e create_task refatorado
 """
 Integração Trello implementando o adaptador IntegrationService.
 """
@@ -8,11 +10,9 @@ from fastapi import HTTPException
 from app.modules.integrations.base import IntegrationService
 from app.modules.integrations.storage import IntegrationStorage
 
-
 class TrelloService(IntegrationService):
     provider_name = "trello"
     capabilities = ["boards", "lists", "create_task"]
-
     BASE_URL = "https://api.trello.com/1"
 
     def __init__(self):
@@ -49,10 +49,7 @@ class TrelloService(IntegrationService):
             raise HTTPException(status_code=400, detail=f"Erro ao listar listas: {resp.text}")
         return resp.json()
 
-    async def create_task(self, user_id: int, target_list_id: str, task_data: Dict[str, Any]) -> Dict[str, Any]:
-        creds = await self.get_user_credentials(user_id)
-        url = f"{self.BASE_URL}/cards"
-        # Build description with emojis similar to legacy service
+    def build_card_description(self, task_data: Dict[str, Any]) -> str:
         description = (task_data.get("description") or "") + "\n\n"
         priority = task_data.get("priority")
         if priority:
@@ -65,7 +62,13 @@ class TrelloService(IntegrationService):
         if due_date:
             description += f"📅 **Prazo:** {due_date}\n"
         description += "\n---\n_Criado pelo SynthTask_"
+        return description
 
+    async def create_task(self, user_id: int, target_list_id: str, task_data: Dict[str, Any]) -> Dict[str, Any]:
+        creds = await self.get_user_credentials(user_id)
+        url = f"{self.BASE_URL}/cards"
+
+        description = self.build_card_description(task_data)
         params = {
             "key": creds["api_key"],
             "token": creds["token"],
@@ -73,6 +76,7 @@ class TrelloService(IntegrationService):
             "name": task_data.get("title", "Tarefa"),
             "desc": description,
         }
+        due_date = task_data.get("due_date")
         if due_date:
             params["due"] = due_date
 

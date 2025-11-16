@@ -4,11 +4,15 @@ import ToolIntegrationButton from "../../feature/connections/components/tool-int
 interface ToolIntegrationCardProps {
   toolName: string;
   connected: boolean;
+  onClick?: () => void;
+  loading?: boolean;
 }
 
 export default function ToolIntegrationCard({
   toolName,
   connected,
+  onClick,
+  loading,
 }: ToolIntegrationCardProps) {
   return (
     <div className="w-full flex items-center justify-between gap-2 border border-neutral-300 rounded-sm p-2">
@@ -23,7 +27,7 @@ export default function ToolIntegrationCard({
           </span>
         </div>
       </div>
-      <ToolIntegrationButton connected={connected} />
+      <ToolIntegrationButton connected={connected} onClick={onClick} loading={loading} />
     </div>
   );
 }

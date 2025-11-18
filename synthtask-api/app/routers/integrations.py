@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 import os
 import time
 import requests
-from typing import Dict, Any
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
 
 from app.core.auth import get_current_user
@@ -108,7 +108,7 @@ def _select_jira_resource(resources: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 # Seção: Endpoints Jira OAuth
 @router.post("/jira/oauth/exchange")
-async def jira_oauth_exchange(payload: Dict[str, Any], current_user: dict = Depends(get_current_user)):
+async def jira_oauth_exchange(payload: JiraOAuthExchangePayload, current_user: dict = Depends(get_current_user)):
     """Trocar authorization code do Jira por tokens e salvar credenciais OAuth."""
     code = payload.code
     redirect_uri = payload.redirect_uri or os.getenv("JIRA_REDIRECT_URI")

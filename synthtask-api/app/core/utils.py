@@ -247,3 +247,18 @@ def validate_object_id(obj_id: str) -> bool:
         return True
     except Exception:
         return False
+
+
+async def delete_user_meeting(meeting_id: str, user_id: int) -> bool:
+    """
+    Apagar reunião garantindo propriedade do usuário.
+    Retorna True se apagou, False se não encontrada.
+    """
+    try:
+        result = await meetings_collection.delete_one({
+            "_id": ObjectId(meeting_id),
+            "user_id": user_id
+        })
+        return result.deleted_count > 0
+    except Exception as e:
+        raise ValueError(f"ID de reunião inválido: {str(e)}")

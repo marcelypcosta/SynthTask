@@ -32,21 +32,41 @@ TEXTO DA REUNIÃO:
 ```
 {text}
 ```
+---
+### INSTRUÇÕES RÍGIDAS
 
-Responda APENAS com um JSON válido no seguinte formato:
-{{
-  "summary": "Resumo conciso da reunião (2-3 frases)",
-  "key_points": ["Ponto 1", "Ponto 2", "Ponto 3"],
+1.  **OBJETIVO:** Extrair TODAS as sub-tarefas granulares. Não agrupe tarefas.
+2.  **GRANULARIDADE:** Se um item principal for dividido em tarefas de "Back-end", "Front-end", "QA", ... , você DEVE criar um item JSON separado para CADA UMA dessas tarefas.
+3.  **NÃO AGRUPAR:** A descrição de uma tarefa NÃO DEVE conter listas (com "1.", "2.", etc.). Se você vir uma lista, cada item dela é uma tarefa separada.
+4.  **ASSIGNEE:** Atribua o nome da pessoa (ex: "Ana", "Léo", "Tiago") se o texto a mencionar junto à tarefa.
+6.  **SEGUIR O EXEMPLO:** O formato de saída DEVE seguir o exemplo abaixo.
+
+---
+### EXEMPLO DE SAÍDA DESEJADA
+
+Se o texto diz:
+"[10:03] Ana (Dev BE): Eu lembro. Pelo back-end, temos: 1. Criar o endpoint. 2. Criar o webhook."
+
+O JSON de saída para essa parte DEVE ser:
+```json
   "tasks": [
     {{
-      "title": "Título curto da tarefa",
-      "description": "Descrição detalhada",
-      "priority": "Alta|Média|Baixa",
-      "assignee": "Nome da pessoa ou null",
-      "due_date": "YYYY-MM-DD ou null"
+      "title": "BE: Criar o endpoint",
+      "description": "Criar o endpoint para gerar o QR Code PIX (integração com a API do gateway).",
+      "priority": "Alta",
+      "assignee": "Ana",
+      "due_date": null,
+      "parent_pbi": "PBI-450"
+    }},
+    {{
+      "title": "BE: Criar o webhook",
+      "description": "Criar o webhook para receber a confirmação de pagamento do gateway.",
+      "priority": "Alta",
+      "assignee": "Ana",
+      "due_date": null,
+      "parent_pbi": "PBI-450"
     }}
   ]
-}}
 """
             
             print(f"⏳ Enviando para Gemini (pode levar alguns segundos)...")

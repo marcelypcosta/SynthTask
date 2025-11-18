@@ -13,7 +13,7 @@ from ..core.auth import get_current_user
 from ..core.utils import (
     get_user_meeting, get_user_meetings, save_processed_meeting,
     format_meeting_response, update_meeting_tasks, mark_meeting_sent_to_trello,
-    validate_object_id
+    validate_object_id, delete_user_meeting
 )
 from ..services.ai_service import ai_service
 from app.modules.integrations.registry import get_integration
@@ -55,6 +55,56 @@ async def process_meeting(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Helpers internos: extração de texto conforme extensão
+async def extract_text_from_upload(file: UploadFile) -> str:
+    file_name = file.filename or ""
+    file_ext = "." + file_name.split(".")[-1].lower() if "." in file_name else ""
+    content = await file.read()
+
+    if file_ext in {".txt", ".md"}:
+        try:
+            text = content.decode("utf-8")
+        except UnicodeDecodeError:
+            text = content.decode("latin-1")
+        return text.strip()
+
+    if file_ext == ".docx":
+        try:
+            from docx import Document  # type: ignore
+        except ImportError:
+            raise HTTPException(
+                status_code=500, detail="Suporte a .docx requer 'python-docx' instalado."
+            )
+        import io
+        doc = Document(io.BytesIO(content))
+        text = "\n".join(p.text for p in doc.paragraphs)
+        return text.strip()
+
+    if file_ext == ".doc":
+        try:
+            import textract  # type: ignore
+        except ImportError:
+            raise HTTPException(
+                status_code=400,
+                detail="Arquivos .doc requerem 'textract'. Instale ou converta para .docx/.txt.",
+            )
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".doc", delete=True) as tmp:
+            tmp.write(content)
+            tmp.flush()
+            try:
+                out = textract.process(tmp.name)
+                return out.decode("utf-8", errors="ignore").strip()
+            except Exception:
+                raise HTTPException(
+                    status_code=400, detail="Falha ao extrair texto do arquivo .doc."
+                )
+
+    raise HTTPException(
+        status_code=400, detail="Formato não permitido. Use: .txt, .docx ou .doc"
+    )
+
+
 @router.post("/process-file", response_model=ProcessedMeeting)
 async def process_meeting_file(
     file: UploadFile = File(...),
@@ -63,23 +113,22 @@ async def process_meeting_file(
     """Process meeting text from uploaded file with AI"""
     
     # Validar extensão do arquivo
-    allowed_extensions = {'.txt', '.md', '.pdf'}
+    allowed_extensions = {".txt", ".docx", ".doc"}
     file_name = file.filename or ""
-    file_ext = '.' + file_name.split('.')[-1].lower() if '.' in file_name else ""
+    file_ext = "." + file_name.split(".")[-1].lower() if "." in file_name else ""
     
     if file_ext not in allowed_extensions:
         raise HTTPException(
             status_code=400, 
-            detail=f"Formato não permitido. Use: {', '.join(allowed_extensions)}"
+            detail=f"Formato não permitido. Use: {', '.join(sorted(allowed_extensions))}"
         )
     
     try:
-        # Ler conteúdo do arquivo
-        content = await file.read()
-        text = content.decode('utf-8').strip()
+        # Extrair conteúdo do arquivo conforme extensão
+        text = await extract_text_from_upload(file)
         
         if not text:
-            raise HTTPException(status_code=400, detail="Arquivo vazio")
+            raise HTTPException(status_code=400, detail="Arquivo sem conteúdo textual")
         
         # Process with AI
         processed_data = ai_service.process_meeting_text(text)
@@ -110,13 +159,12 @@ async def process_meeting_file(
 @router.get("", response_model=List[dict])
 async def get_meetings(current_user: dict = Depends(get_current_user)):
     """Listar todas as reuniões do usuário atual"""
-    
     meetings = await get_user_meetings(current_user["id"])
-    
     return [
         {
             "id": str(meeting["_id"]),
             "summary": meeting["summary"],
+            "file_name": meeting.get("file_name"),
             "created_at": meeting["created_at"].isoformat(),
             "tasks_count": len(meeting["tasks"]),
             "sent_to_trello": meeting.get("sent_to_trello", False)
@@ -204,6 +252,17 @@ async def delete_task(
     await update_meeting_tasks(meeting_id, tasks)
     
     return MessageResponse(message="Task deletada com sucesso")
+
+
+@router.delete("/{meeting_id}", response_model=MessageResponse)
+async def delete_meeting(meeting_id: str, current_user: dict = Depends(get_current_user)):
+    """Apagar uma transcrição/reunião do usuário atual"""
+    if not validate_object_id(meeting_id):
+        raise HTTPException(status_code=400, detail="ID de reunião inválido")
+    deleted = await delete_user_meeting(meeting_id, current_user["id"])
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Reunião não encontrada")
+    return MessageResponse(message="Transcrição apagada com sucesso")
 
 
 @router.post("/send-to-trello", response_model=SendToTrelloResponse)

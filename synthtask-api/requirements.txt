@@ -14,6 +14,8 @@ pymongo==4.6.1
 databases==0.9.0
 asyncpg==0.29.0
 sqlalchemy==2.0.23
+python-docx==0.8.11
+textract==1.6.5
 
 # Security
 bcrypt==4.1.2

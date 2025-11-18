@@ -152,7 +152,7 @@ export default function ConnectionsPage() {
         )}
 
         {isConnectionsLoaded && connectedTools.length > 0 && (
-          <div className="w-full">
+          <div className="w-full flex flex-col space-y-4">
             <h2 className="font-medium text-md mb-2">Ferramentas conectadas</h2>
             {connectedTools.map((t) => (
               <div key={t.provider} className="space-y-2">

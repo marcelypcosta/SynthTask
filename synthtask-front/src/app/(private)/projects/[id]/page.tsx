@@ -1,8 +1,9 @@
 "use client";
 
-import { use } from "react";
+import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, SquareKanban, Video } from "lucide-react";
+import { useSession } from "next-auth/react";
 
 import {
   Card,
@@ -24,6 +25,10 @@ import { Button } from "@/ui/button";
 
 import BackButton from "@/components/projects/back-button";
 import CardMeetings from "@/components/projects/card-meetings";
+
+import { setAccessToken } from "@/lib/http";
+import { getProject, updateProjectTarget, deleteProject } from "@/lib/projects";
+import { listTargets, checkConnected } from "@/lib/integrations";
 
 import type { Meeting } from "@/types/meetings";
 
@@ -50,33 +55,98 @@ export default function ProjectDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const router = useRouter();
-
+  const { data: session, status: authStatus } = useSession();
   const { id } = use(params);
+  const [project, setProject] = useState<{
+    id: number;
+    name: string;
+    provider: "trello" | "jira";
+    target_id: string;
+    target_name?: string | null;
+  } | null>(null);
+  const [targets, setTargets] = useState<{ id: string; name: string }[]>([]);
+  const [changing, setChanging] = useState(false);
+  const [selectedTargetId, setSelectedTargetId] = useState("");
+  const [providerDisconnected, setProviderDisconnected] = useState(false);
+
+  useEffect(() => {
+    if (authStatus !== "authenticated" || !session) return;
+    const token = (session as unknown as { accessToken?: string })?.accessToken;
+    if (token) setAccessToken(token);
+    const pid = Number(id);
+    getProject(pid)
+      .then(async (p) => {
+        setProject(p);
+        try {
+          const connected = await checkConnected(p.provider);
+          setProviderDisconnected(!connected);
+        } catch {
+          setProviderDisconnected(true);
+        }
+      })
+      .catch(() => {});
+  }, [authStatus, session, id]);
+
+  const handleStartChange = async () => {
+    if (!project) return;
+    try {
+      const data: any = await listTargets(project.provider);
+      const items = Array.isArray(data?.boards)
+        ? data.boards.map((b: any) => ({ id: String(b.id), name: String(b.name ?? b.id) }))
+        : Array.isArray(data?.projects)
+        ? data.projects.map((p: any) => ({ id: String(p.id), name: String(p.name ?? p.id) }))
+        : [];
+      setTargets(items);
+      setSelectedTargetId(items[0]?.id ?? "");
+      setChanging(true);
+    } catch {}
+  };
+
+  const handleSaveChange = async () => {
+    if (!project || !selectedTargetId) return;
+    const pid = Number(id);
+    const target = targets.find((t) => t.id === selectedTargetId);
+    const updated = await updateProjectTarget(pid, {
+      target_id: selectedTargetId,
+      target_name: target?.name,
+      provider: project.provider,
+    });
+    setProject(updated);
+    setChanging(false);
+  };
+
+  const handleDeleteProject = async () => {
+    const pid = Number(id);
+    await deleteProject(pid);
+    router.push("/projects");
+  };
 
   const handleRedirect = () => {
     router.push(`/uploads`);
   };
 
   return (
-    <div className="pb-4">
+    <div className="w-full pb-4">
       <BackButton />
       <div className="my-4">
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>Meus Projetos</BreadcrumbItem>
             <BreadcrumbSeparator />
-            <BreadcrumbItem>Projeto {id}</BreadcrumbItem>
+            <BreadcrumbItem>{project ? project.name : `Projeto ${id}`}</BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
       </div>
 
       <header className="w-full flex justify-between items-center mb-6">
         <div className="w-full border border-neutral-200 p-4 rounded-md">
-          <h1 className="text-2xl font-bold text-gray-900">
-            Nome do Projeto {id}
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            {project ? project.name : `Projeto ${id}`}
           </h1>
           <p className="text-sm text-gray-500">
-            Nome do Boad vinculado - Ferramenta de Gerenciamento
+            {project
+              ? `${project.target_name ?? project.target_id} - ${project.provider === "trello" ? "Trello" : "Jira"}`
+              : "Carregando destino..."}
           </p>
         </div>
       </header>
@@ -137,21 +207,57 @@ export default function ProjectDetailPage({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-2 bg-neutral-100 p-4 rounded-md">
-              <SquareKanban />
-              <p className="text-sm">
-                Nome do Boad vinculado - Ferramenta de Gerenciamento
-              </p>
-            </div>
+            {providerDisconnected ? (
+              <div className="flex flex-col gap-3 rounded-md border border-dashed border-neutral-200 bg-neutral-100 p-4">
+                <p className="text-sm text-neutral-700">
+                  A ferramenta {project?.provider === "trello" ? "Trello" : "Jira"} está desconectada. Conecte-se ou altere o destino para outra ferramenta.
+                </p>
+              </div>
+            ) : !changing ? (
+              <div className="flex items-center gap-2 bg-neutral-100 p-4 rounded-md">
+                <SquareKanban />
+                <p className="text-sm">
+                  {project
+                    ? `${project.target_name ?? project.target_id} - ${project.provider === "trello" ? "Trello" : "Jira"}`
+                    : "Carregando..."}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <label className="text-sm text-neutral-700">Selecione o destino</label>
+                <select
+                  className="w-full border rounded-md p-2"
+                  value={selectedTargetId}
+                  onChange={(e) => setSelectedTargetId(e.target.value)}
+                >
+                  {targets.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </CardContent>
-          <CardFooter>
-            <Button className="w-full gap-2">
-              <SquareKanban className="h-4 w-4" aria-hidden="true" />
-              Alterar Board
-            </Button>
+          <CardFooter className="flex gap-2">
+            {providerDisconnected ? (
+              <>
+                <Button className="w-full" onClick={() => router.push("/connections")}>Conectar ferramenta</Button>
+                <Button variant="destructive" className="w-full" onClick={handleDeleteProject}>Excluir projeto</Button>
+              </>
+            ) : !changing ? (
+              <Button className="w-full gap-2" onClick={handleStartChange}>
+                <SquareKanban className="h-4 w-4" aria-hidden="true" />
+                Alterar Board
+              </Button>
+            ) : (
+              <>
+                <Button className="gap-2" onClick={handleSaveChange}>Salvar</Button>
+                <Button variant="outline" onClick={() => setChanging(false)}>Cancelar</Button>
+              </>
+            )}
           </CardFooter>
         </Card>
       </div>
     </div>
   );
 }
+

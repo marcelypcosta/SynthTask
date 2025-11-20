@@ -7,7 +7,6 @@ from typing import Dict, Any
 
 from ..core.config import settings
 
-
 class AIService:
     def __init__(self):
         if settings.GEMINI_API_KEY and settings.GEMINI_API_KEY != "SUA_API_KEY_AQUI":
@@ -81,6 +80,31 @@ O JSON de saída para essa parte DEVE ser:
             
             print(f"📝 Resposta da IA recebida, parseando JSON...")
             result = json.loads(response_text)
+
+            # Garantir que campos esperados existam mesmo se a IA omitir algo
+            if not isinstance(result.get("summary"), str):
+                result["summary"] = "Resumo não informado pela IA."
+            if not isinstance(result.get("key_points"), list):
+                result["key_points"] = []
+            if not isinstance(result.get("tasks"), list):
+                result["tasks"] = []
+
+            # Normalizar tarefas para evitar quebra ao salvar/serializar
+            normalized_tasks = []
+            for task in result["tasks"]:
+                task_data = {
+                    "title": task.get("title") or "Tarefa sem título",
+                    "description": task.get("description") or "",
+                    "priority": task.get("priority") or "Média",
+                    "assignee": task.get("assignee"),
+                    "due_date": task.get("due_date")
+                }
+                # Preservar ID enviado pela IA se existir
+                if task.get("id"):
+                    task_data["id"] = task["id"]
+                normalized_tasks.append(task_data)
+            result["tasks"] = normalized_tasks
+
             print(f"✅ {len(result['tasks'])} tasks encontradas com sucesso!")
             
             return result

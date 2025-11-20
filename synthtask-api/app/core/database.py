@@ -40,6 +40,18 @@ integration_credentials = sqlalchemy.Table(
     sqlalchemy.UniqueConstraint("user_id", "provider", name="uq_integration_user_provider"),
 )
 
+projects_table = sqlalchemy.Table(
+    "projects",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
+    sqlalchemy.Column("user_id", sqlalchemy.Integer, nullable=False),
+    sqlalchemy.Column("name", sqlalchemy.String, nullable=False),
+    sqlalchemy.Column("provider", sqlalchemy.String, nullable=False),
+    sqlalchemy.Column("target_id", sqlalchemy.String, nullable=False),
+    sqlalchemy.Column("target_name", sqlalchemy.String, nullable=True),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=datetime.utcnow),
+)
+
 # SQLAlchemy engine for metadata operations
 engine = sqlalchemy.create_engine(settings.POSTGRES_URL)
 

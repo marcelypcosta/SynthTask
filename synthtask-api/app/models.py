@@ -83,3 +83,31 @@ class TrelloCardResponse(BaseModel):
 class SendToTrelloResponse(BaseModel):
     message: str
     cards: List[TrelloCardResponse]
+
+class ProjectCreate(BaseModel):
+    name: str
+    provider: str
+    target_id: str
+    target_name: Optional[str] = None
+
+class Project(BaseModel):
+    id: int
+    name: str
+    provider: str
+    target_id: str
+    target_name: Optional[str] = None
+    created_at: str
+
+class ProjectCreate(BaseModel):
+    name: str
+    provider: str
+    target_id: str
+    target_name: Optional[str] = None
+
+class Project(BaseModel):
+    id: int
+    name: str
+    provider: str
+    target_id: str
+    target_name: Optional[str] = None
+    created_at: str

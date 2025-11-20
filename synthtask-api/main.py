@@ -6,6 +6,7 @@ from app.core.database import database, metadata, engine, drop_legacy_trello_col
 from app.routers.auth import router as auth_router
 from app.routers.meetings import router as meetings_router
 from app.routers.integrations import router as integrations_router
+from app.routers.projects import router as projects_router
 
 app = FastAPI(title=settings.APP_NAME, version=settings.VERSION)
 
@@ -22,6 +23,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(meetings_router)
 app.include_router(integrations_router)
+app.include_router(projects_router)
 
 
 @app.on_event("startup")

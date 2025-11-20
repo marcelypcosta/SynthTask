@@ -8,7 +8,7 @@ import {
   CardTitle,
 } from "@/ui/card";
 import { Button } from "@/ui/button";
-import { View } from "lucide-react";
+import { View, Trash } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface NewProjectCardProps {
@@ -16,6 +16,7 @@ interface NewProjectCardProps {
   projectName: string;
   boardName: string;
   toolName: string;
+  onDelete?: (id: number) => void;
 }
 
 export default function NewProjectCard({
@@ -23,6 +24,7 @@ export default function NewProjectCard({
   projectName,
   boardName,
   toolName,
+  onDelete,
 }: NewProjectCardProps) {
   const router = useRouter();
 
@@ -38,10 +40,15 @@ export default function NewProjectCard({
           {boardName} - {toolName}
         </CardDescription>
       </CardHeader>
-      <CardFooter>
-        <Button className="w-full" onClick={() => handleRedirect(id)}>
+      <CardFooter className="flex gap-2">
+        <Button className="flex-1" onClick={() => handleRedirect(id)}>
           <View /> Ver projeto
         </Button>
+        {onDelete && (
+          <Button variant="destructive" className="flex-1" onClick={() => onDelete(id)}>
+            <Trash /> Excluir
+          </Button>
+        )}
       </CardFooter>
     </Card>
   );

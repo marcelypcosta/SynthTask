@@ -1,6 +1,8 @@
 "use client";
 
-import NewProjectCard from "@/components/projects/new-project-card";
+import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+
 import {
   Dialog,
   DialogContent,
@@ -8,40 +10,71 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/ui/dialog";
-import CreateNewProjectButton from "@/feature/projects/components/create-new-project-button";
-import CreateNewProjectForm from "@/feature/projects/components/create-new-projet-form";
 
-interface IProjectCard {
-  id: number;
-  projectName: string;
-  boardName: string;
-  toolName: string;
+import NewProjectCard from "@/components/projects/new-project-card";
+import CreateNewProjectForm from "@/feature/projects/components/create-new-projet-form";
+import CreateNewProjectButton from "@/feature/projects/components/create-new-project-button";
+
+import { setAccessToken } from "@/lib/http";
+import { getProjects, deleteProject, type ProjectListItem } from "@/lib/projects";
+import { checkConnected } from "@/lib/integrations";
+
+function providerLabel(p: string) {
+  return p === "trello" ? "Trello" : p === "jira" ? "Jira" : p;
 }
 
-const projects: IProjectCard[] = [
-  {
-    id: 1,
-    projectName: "Projeto 1",
-    boardName: "Board 1",
-    toolName: "Ferramenta 1",
-  },
-  {
-    id: 2,
-    projectName: "Projeto 2",
-    boardName: "Board 2",
-    toolName: "Ferramenta 2",
-  },
-  {
-    id: 3,
-    projectName: "Projeto 3",
-    boardName: "Board 3",
-    toolName: "Ferramenta 3",
-  },
-];
-
 export default function MyProjectsPage() {
+  const { data: session, status } = useSession();
+  const [open, setOpen] = useState(false);
+  const [projects, setProjects] = useState<ProjectListItem[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    async function load() {
+      if (status !== "authenticated" || !session) return;
+      const token = (session as any)?.accessToken;
+      if (token) setAccessToken(token);
+      const items = await getProjects();
+      if (!mounted) return;
+      setProjects(items);
+
+      const [trello, jira] = await Promise.allSettled([
+        checkConnected("trello"),
+        checkConnected("jira"),
+      ]);
+      const connected = {
+        trello: trello.status === "fulfilled" ? trello.value : false,
+        jira: jira.status === "fulfilled" ? jira.value : false,
+      } as const;
+      const toDelete = items
+        .filter((p) => !connected[p.provider as "trello" | "jira"]) 
+        .map((p) => p.id);
+      if (toDelete.length) {
+        await Promise.allSettled(toDelete.map((id) => deleteProject(id)));
+        if (!mounted) return;
+        setProjects((prev) => prev.filter((p) => !toDelete.includes(p.id)));
+      }
+    }
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, [status, session]);
+
+  function handleCreated(p: ProjectListItem) {
+    setProjects((prev) => [p, ...prev]);
+    setOpen(false);
+  }
+
+  async function handleDelete(id: number) {
+    const ok = typeof window !== "undefined" ? window.confirm("Tem certeza que deseja excluir este projeto?") : true;
+    if (!ok) return;
+    await deleteProject(id);
+    setProjects((prev) => prev.filter((p) => p.id !== id));
+  }
+
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <header className="w-full flex justify-between items-center mb-6">
         <div>
           <h1 className="text-3xl font-semibold text-neutral-800 mt-2">
@@ -54,13 +87,14 @@ export default function MyProjectsPage() {
         <CreateNewProjectButton />
       </header>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 w-full">
-        {projects.map((project) => (
+        {projects.map((p) => (
           <NewProjectCard
-            key={project.id}
-            id={project.id}
-            projectName={project.projectName}
-            boardName={project.boardName}
-            toolName={project.toolName}
+            key={p.id}
+            id={p.id}
+            projectName={p.name}
+            boardName={p.target_name ?? ""}
+            toolName={providerLabel(p.provider)}
+            onDelete={handleDelete}
           />
         ))}
       </div>
@@ -72,7 +106,7 @@ export default function MyProjectsPage() {
             Preencha os campos abaixo para criar um novo projeto.
           </DialogDescription>
         </DialogHeader>
-        <CreateNewProjectForm />
+        <CreateNewProjectForm onCreated={handleCreated} />
       </DialogContent>
     </Dialog>
   );

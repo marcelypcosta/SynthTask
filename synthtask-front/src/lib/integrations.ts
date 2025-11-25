@@ -84,9 +84,9 @@ export function getJiraAuthUrl(origin: string): string {
     "offline_access",
   ].join(" ");
 
-  const redirectUri =
-    process.env.NEXT_PUBLIC_JIRA_REDIRECT_URI ||
-    `${origin}/api/auth/callback/jira`;
+  const returnUrl =
+    process.env.NEXT_PUBLIC_JIRA_REDIRECT_URL ||
+    `${origin}/jira/callback`;
 
   const state =
     typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -102,7 +102,7 @@ export function getJiraAuthUrl(origin: string): string {
   )}&client_id=${encodeURIComponent(clientId)}&scope=${encodeURIComponent(
     scopes
   )}&redirect_uri=${encodeURIComponent(
-    redirectUri
+    returnUrl
   )}&state=${encodeURIComponent(
     state
   )}&response_type=code&prompt=consent`;

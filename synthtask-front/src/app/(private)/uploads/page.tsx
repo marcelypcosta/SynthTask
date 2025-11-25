@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Upload } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import { setAccessToken } from "@/lib/http";
 
 import { Button } from "@/ui/button";
 import {
@@ -13,76 +14,43 @@ import {
   TableCell,
 } from "@/ui/table";
 
+import UploadFileForm from "@/feature/upload/components/upload-file-form";
 import {
   getMeetings,
-  uploadTranscript,
   MeetingListItem,
   ProcessedMeeting,
   deleteMeeting,
 } from "@/lib/meetings-api";
-  import { formatDate } from "@/lib/meetings";
+import { formatDate } from "@/lib/meetings";
 
 export default function UploadsPage() {
+  const { data: session, status: authStatus } = useSession();
   const [meetings, setMeetings] = useState<MeetingListItem[]>([]);
-  const [uploading, setUploading] = useState<boolean>(false);
+
   const [error, setError] = useState<string | null>(null);
-  const [lastProcessed, setLastProcessed] = useState<ProcessedMeeting | null>(null);
+  const [lastProcessed, setLastProcessed] = useState<ProcessedMeeting | null>(
+    null
+  );
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let mounted = true;
     async function load() {
+      if (authStatus !== "authenticated" || !session) return;
+      const token = (session as any)?.accessToken ?? null;
+      if (token) setAccessToken(token);
       try {
         const data = await getMeetings();
         if (mounted) setMeetings(data);
       } catch (e: any) {
-        console.warn("Falha ao carregar transcrições:", e?.message || e);
+        setError(e?.message || "Falha ao carregar transcrições");
       }
     }
     load();
     return () => {
       mounted = false;
     };
-  }, []);
-
-  const triggerFileSelect = useCallback(() => {
-    inputRef.current?.click();
-  }, []);
-
-  const handleFiles = useCallback(async (files?: FileList | null) => {
-    if (!files || files.length === 0) return;
-    const file = files[0];
-    const allowed = [".txt", ".docx", ".doc"];
-    const ext = "." + (file.name.split(".").pop() || "").toLowerCase();
-    if (!allowed.includes(ext)) {
-      setError(`Formato não permitido. Use: ${allowed.join(", ")}`);
-      return;
-    }
-    setError(null);
-    setUploading(true);
-    try {
-      const processed = await uploadTranscript(file);
-      setLastProcessed(processed);
-      const data = await getMeetings();
-      setMeetings(data);
-    } catch (e: any) {
-      setError(e?.message || "Falha ao enviar arquivo");
-    } finally {
-      setUploading(false);
-    }
-  }, []);
-
-  const onDrop = useCallback(
-    async (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      await handleFiles(e.dataTransfer.files);
-    },
-    [handleFiles]
-  );
-  const onDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-  }, []);
+  }, [authStatus, session]);
 
   const handleDelete = useCallback(async (id: string) => {
     setDeletingId(id);
@@ -106,35 +74,16 @@ export default function UploadsPage() {
           Analise as transcrições de áudio e veja as tarefas extraídas.
         </p>
       </header>
+      {error && <p className="text-destructive mb-4">{error}</p>}
 
-      <div
-        className="w-full bg-neutral-100 p-8 border-2 border-neutral-300 rounded-sm"
-        onDrop={onDrop}
-        onDragOver={onDragOver}
-      >
-        <div className="flex flex-col justify-center items-center text-center">
-          <Upload className="text-primary" />
-          <p className="font-semibold">Arraste e solte seu arquivo aqui</p>
-          <span className="text-neutral-600">
-            Ou clique para navegar pelos seus arquivos
-          </span>
-          <Button
-            className="mt-4"
-            disabled={uploading}
-            onClick={triggerFileSelect}
-          >
-            {uploading ? "Enviando..." : "Selecionar arquivo"}
-          </Button>
-          {error && <p className="text-destructive mt-3">{error}</p>}
-        </div>
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".txt,.docx,.doc"
-          className="hidden"
-          onChange={(e) => handleFiles(e.target.files)}
-        />
-      </div>
+      <UploadFileForm
+        onUploaded={async (processed) => {
+          setLastProcessed(processed);
+          const data = await getMeetings();
+          setMeetings(data);
+        }}
+        onError={(msg) => setError(msg)}
+      />
 
       {lastProcessed && (
         <div className="w-full mt-6 p-4 border rounded-sm bg-neutral-50">
@@ -152,7 +101,9 @@ export default function UploadsPage() {
       )}
 
       <div className="w-full mt-6">
-        <h2 className="text-lg font-semibold text-neutral-800 mb-2">Transcrições processadas</h2>
+        <h2 className="text-lg font-semibold text-neutral-800 mb-2">
+          Transcrições processadas
+        </h2>
         <Table className="border border-neutral-300 rounded-sm">
           <TableHeader className="bg-neutral-100">
             <TableRow>
@@ -166,7 +117,7 @@ export default function UploadsPage() {
             {meetings.map((m) => (
               <TableRow key={m.id}>
                 <TableCell className="font-medium">
-                  {m.file_name || "(Arquivo sem nome)"} 
+                  {m.file_name || "(Arquivo sem nome)"}
                 </TableCell>
                 <TableCell>{formatDate(m.created_at)}</TableCell>
                 <TableCell className="text-right">{m.tasks_count}</TableCell>

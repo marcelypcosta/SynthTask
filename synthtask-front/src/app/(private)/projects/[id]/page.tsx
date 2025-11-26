@@ -1,9 +1,8 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, SquareKanban, Video } from "lucide-react";
-import useProjectDetail from "@/feature/projects/hooks/use-projects-detail";
 
 import {
   Card,
@@ -22,26 +21,11 @@ import {
 import { Button } from "@/ui/button";
 
 import BackButton from "@/components/projects/back-button";
-import CardMeetings from "@/components/projects/card-meetings";
+import MeetingCard from "@/feature/projects/components/meeting-card";
+import MeetingReviewModal from "@/feature/projects/components/meeting-review-modal";
 
-import type { Meeting } from "@/types/meetings";
-
-const meetings: Meeting[] = [
-  {
-    id: 1,
-    name: "Reunião 1",
-    description: "Reunião de planejamento do projeto",
-    data_time: "2024-01-01T10:00:00",
-    tasks: [],
-  },
-  {
-    id: 2,
-    name: "Reunião 2",
-    description: "Reunião de revisão do projeto",
-    data_time: "2024-01-02T14:00:00",
-    tasks: [],
-  },
-];
+import useProjectDetail from "@/feature/projects/hooks/use-projects-detail";
+import useProjectMeetings from "@/feature/projects/hooks/use-project-meetings";
 
 export default function ProjectDetailPage({
   params,
@@ -63,6 +47,12 @@ export default function ProjectDetailPage({
     handleDeleteProject,
   } = useProjectDetail(String(id));
 
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(
+    null
+  );
+  const { meetings, loading, error, refresh } = useProjectMeetings();
+
   const handleRedirect = () => {
     router.push(`/uploads`);
   };
@@ -75,7 +65,9 @@ export default function ProjectDetailPage({
           <BreadcrumbList>
             <BreadcrumbItem>Meus Projetos</BreadcrumbItem>
             <BreadcrumbSeparator />
-            <BreadcrumbItem>{project ? project.name : `Projeto ${id}`}</BreadcrumbItem>
+            <BreadcrumbItem>
+              {project ? project.name : `Projeto ${id}`}
+            </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
       </div>
@@ -87,7 +79,9 @@ export default function ProjectDetailPage({
           </h1>
           <p className="text-sm text-gray-500">
             {project
-              ? `${project.target_name ?? project.target_id} - ${project.provider === "trello" ? "Trello" : "Jira"}`
+              ? `${project.target_name ?? project.target_id} - ${
+                  project.provider === "trello" ? "Trello" : "Jira"
+                }`
               : "Carregando destino..."}
           </p>
         </div>
@@ -105,10 +99,30 @@ export default function ProjectDetailPage({
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col space-y-4">
-            {meetings.map((meeting) => (
-              <CardMeetings key={meeting.id} meeting={meeting} />
-            ))}
-            {meetings.length === 0 && (
+            {error && <p className="text-destructive">{error}</p>}
+            {loading && (
+              <div className="space-y-2">
+                <div className="h-10 bg-neutral-200 animate-pulse rounded-sm" />
+                <div className="h-10 bg-neutral-200 animate-pulse rounded-sm" />
+              </div>
+            )}
+            {!loading && meetings.length > 0 && (
+              <div className="flex flex-col gap-4">
+                {meetings.map((m) => (
+                  <MeetingCard
+                    key={m.id}
+                    id={m.id}
+                    fileName={m.file_name}
+                    createdAt={m.created_at}
+                    onReview={(id) => {
+                      setSelectedMeetingId(id);
+                      setReviewOpen(true);
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+            {!loading && meetings.length === 0 && (
               <div className="flex flex-col items-center justify-center gap-3 rounded-md border border-dashed border-neutral-200 bg-neutral-100 p-8 text-center">
                 <Video
                   className="h-6 w-6 text-neutral-400"
@@ -139,6 +153,12 @@ export default function ProjectDetailPage({
             para envio.
           </CardFooter>
         </Card>
+        <MeetingReviewModal
+          open={reviewOpen}
+          onOpenChange={(o) => setReviewOpen(o)}
+          meetingId={selectedMeetingId}
+          onSaved={() => {}}
+        />
 
         {/* Seção de Configuração de Board */}
         <Card className="w-full bg-white rounded-sm lg:col-span-1">
@@ -152,7 +172,10 @@ export default function ProjectDetailPage({
             {providerDisconnected ? (
               <div className="flex flex-col gap-3 rounded-md border border-dashed border-neutral-200 bg-neutral-100 p-4">
                 <p className="text-sm text-neutral-700">
-                  A ferramenta {project?.provider === "trello" ? "Trello" : "Jira"} está desconectada. Conecte-se ou altere o destino para outra ferramenta.
+                  A ferramenta{" "}
+                  {project?.provider === "trello" ? "Trello" : "Jira"} está
+                  desconectada. Conecte-se ou altere o destino para outra
+                  ferramenta.
                 </p>
               </div>
             ) : !changing ? (
@@ -160,20 +183,26 @@ export default function ProjectDetailPage({
                 <SquareKanban />
                 <p className="text-sm">
                   {project
-                    ? `${project.target_name ?? project.target_id} - ${project.provider === "trello" ? "Trello" : "Jira"}`
+                    ? `${project.target_name ?? project.target_id} - ${
+                        project.provider === "trello" ? "Trello" : "Jira"
+                      }`
                     : "Carregando..."}
                 </p>
               </div>
             ) : (
               <div className="space-y-3">
-                <label className="text-sm text-neutral-700">Selecione o destino</label>
+                <label className="text-sm text-neutral-700">
+                  Selecione o destino
+                </label>
                 <select
                   className="w-full border rounded-md p-2"
                   value={selectedTargetId}
                   onChange={(e) => setSelectedTargetId(e.target.value)}
                 >
-                  {targets.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
+                  {targets.map((t: { id: string; name: string }) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -182,8 +211,19 @@ export default function ProjectDetailPage({
           <CardFooter className="flex gap-2">
             {providerDisconnected ? (
               <>
-                <Button className="w-full" onClick={() => router.push("/connections")}>Conectar ferramenta</Button>
-                <Button variant="destructive" className="w-full" onClick={handleDeleteProject}>Excluir projeto</Button>
+                <Button
+                  className="w-full"
+                  onClick={() => router.push("/connections")}
+                >
+                  Conectar ferramenta
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="w-full"
+                  onClick={handleDeleteProject}
+                >
+                  Excluir projeto
+                </Button>
               </>
             ) : !changing ? (
               <Button className="w-full gap-2" onClick={handleStartChange}>
@@ -192,8 +232,12 @@ export default function ProjectDetailPage({
               </Button>
             ) : (
               <>
-                <Button className="gap-2" onClick={handleSaveChange}>Salvar</Button>
-                <Button variant="outline" onClick={() => setChanging(false)}>Cancelar</Button>
+                <Button className="gap-2" onClick={handleSaveChange}>
+                  Salvar
+                </Button>
+                <Button variant="outline" onClick={() => setChanging(false)}>
+                  Cancelar
+                </Button>
               </>
             )}
           </CardFooter>
@@ -202,4 +246,3 @@ export default function ProjectDetailPage({
     </div>
   );
 }
-

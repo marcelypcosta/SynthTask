@@ -7,6 +7,7 @@ from typing import Dict, Any
 
 from ..core.config import settings
 
+
 class AIService:
     def __init__(self):
         if settings.GEMINI_API_KEY and settings.GEMINI_API_KEY != "SUA_API_KEY_AQUI":
@@ -32,22 +33,47 @@ TEXTO DA REUNIÃO:
 {text}
 ```
 ---
+Eu quero que você extraia o resumo da reunião, os pontos-chave discutidos e uma lista detalhada de tarefas a serem realizadas.
+
 ### INSTRUÇÕES RÍGIDAS
 
-1.  **OBJETIVO:** Extrair TODAS as sub-tarefas granulares. Não agrupe tarefas.
-2.  **GRANULARIDADE:** Se um item principal for dividido em tarefas de "Back-end", "Front-end", "QA", ... , você DEVE criar um item JSON separado para CADA UMA dessas tarefas.
-3.  **NÃO AGRUPAR:** A descrição de uma tarefa NÃO DEVE conter listas (com "1.", "2.", etc.). Se você vir uma lista, cada item dela é uma tarefa separada.
-4.  **ASSIGNEE:** Atribua o nome da pessoa (ex: "Ana", "Léo", "Tiago") se o texto a mencionar junto à tarefa.
+1.  **RESUMO:** Crie um resumo conciso da reunião com NO MÁXIMO 200 caracteres.
+2.  **OBJETIVO:** Extrair TODAS as sub-tarefas granulares. Não agrupe tarefas.
+3.  **GRANULARIDADE:** Se um item principal for dividido em tarefas de "Back-end", "Front-end", "QA", ... , você DEVE criar um item JSON separado para CADA UMA dessas tarefas.
+4.  **NÃO AGRUPAR:** A descrição de uma tarefa NÃO DEVE conter listas (com "1.", "2.", etc.). Se você vir uma lista, cada item dela é uma tarefa separada.
+5.  **ASSIGNEE:** Atribua o nome da pessoa (ex: "Ana", "Léo", "Tiago") se o texto a mencionar junto à tarefa.
 6.  **SEGUIR O EXEMPLO:** O formato de saída DEVE seguir o exemplo abaixo.
 
 ---
-### EXEMPLO DE SAÍDA DESEJADA
+### FORMATO DE SAÍDA OBRIGATÓRIO
+
+Você DEVE retornar um JSON com EXATAMENTE esta estrutura:
+
+```json
+{{
+  "summary": "Resumo conciso da reunião em até 200 caracteres",
+  "tasks": [
+    {{
+      "title": "Título da tarefa",
+      "description": "Descrição detalhada",
+      "priority": "Alta",
+      "assignee": "Nome da Pessoa",
+      "due_date": null,
+      "parent_pbi": "PBI-XXX"
+    }}
+  ]
+}}
+```
+
+### EXEMPLO COMPLETO
 
 Se o texto diz:
-"[10:03] Ana (Dev BE): Eu lembro. Pelo back-end, temos: 1. Criar o endpoint. 2. Criar o webhook."
+"[10:03] Ana (Dev BE): Vamos implementar pagamento PIX. Pelo back-end, temos: 1. Criar o endpoint. 2. Criar o webhook."
 
-O JSON de saída para essa parte DEVE ser:
+O JSON de saída DEVE ser:
 ```json
+{{
+  "summary": "Reunião sobre implementação de pagamento PIX no sistema, definindo tarefas de backend",
   "tasks": [
     {{
       "title": "BE: Criar o endpoint",
@@ -66,6 +92,8 @@ O JSON de saída para essa parte DEVE ser:
       "parent_pbi": "PBI-450"
     }}
   ]
+}}
+```
 """
             
             print(f"⏳ Enviando para Gemini (pode levar alguns segundos)...")
@@ -84,6 +112,11 @@ O JSON de saída para essa parte DEVE ser:
             # Garantir que campos esperados existam mesmo se a IA omitir algo
             if not isinstance(result.get("summary"), str):
                 result["summary"] = "Resumo não informado pela IA."
+            
+            # Limitar o resumo a 200 caracteres
+            if len(result["summary"]) > 200:
+                result["summary"] = result["summary"][:197] + "..."
+            
             if not isinstance(result.get("key_points"), list):
                 result["key_points"] = []
             if not isinstance(result.get("tasks"), list):

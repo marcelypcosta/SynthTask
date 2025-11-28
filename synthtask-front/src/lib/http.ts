@@ -46,10 +46,7 @@ api.interceptors.response.use(
   (error: AxiosError) => {
     const status = error.response?.status;
     const data: any = error.response?.data;
-    const message =
-      (data && (data.detail || data.message)) ||
-      error.message ||
-      "Erro de requisição";
+    const message = toUserMessage(status, data, error.message);
     return Promise.reject(new AxiosRequestError(message, status, error));
   }
 );
@@ -62,4 +59,27 @@ export function createCancel() {
     signal: controller.signal,
     cancel: () => controller.abort(),
   };
+}
+
+export function toUserMessage(status?: number, data?: any, fallback?: string) {
+  const direct = (data && (data.detail || data.message)) as string | undefined;
+  if (direct && String(direct).trim().length > 0) return String(direct);
+  switch (status) {
+    case 400:
+      return "Requisição inválida";
+    case 401:
+      return "Não autorizado";
+    case 403:
+      return "Acesso negado";
+    case 404:
+      return "Recurso não encontrado";
+    case 409:
+      return "Conflito na operação";
+    case 422:
+      return "Dados inválidos";
+    case 500:
+      return "Erro interno no servidor";
+    default:
+      return fallback || "Erro de requisição";
+  }
 }

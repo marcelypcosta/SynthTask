@@ -8,7 +8,7 @@ import {
   CardTitle,
 } from "@/ui/card";
 import { Button } from "@/ui/button";
-import { View, Trash } from "lucide-react";
+import { Trash } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface NewProjectCardProps {
@@ -42,7 +42,7 @@ export default function NewProjectCard({
       </CardHeader>
       <CardFooter className="flex gap-2">
         <Button className="flex-1" onClick={() => handleRedirect(id)}>
-          <View /> Ver projeto
+          Ver projeto
         </Button>
         {onDelete && (
           <Button variant="destructive" className="flex-1" onClick={() => onDelete(id)}>

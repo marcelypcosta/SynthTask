@@ -2,7 +2,7 @@
 
 import { use, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, SquareKanban, Video } from "lucide-react";
+import { Plus, SquareKanban, Video, Loader2 } from "lucide-react";
 
 import {
   Card,
@@ -21,11 +21,13 @@ import {
 import { Button } from "@/ui/button";
 
 import BackButton from "@/components/projects/back-button";
-import MeetingCard from "@/feature/projects/components/meeting-card";
-import MeetingReviewModal from "@/feature/projects/components/meeting-review-modal";
+import MeetingCard from "@/feature/meeting/components/meeting-card";
+import MeetingReviewModal from "@/feature/meeting/components/meeting-review-modal";
 
 import useProjectDetail from "@/feature/projects/hooks/use-projects-detail";
-import useProjectMeetings from "@/feature/projects/hooks/use-project-meetings";
+import useProjectMeetings from "@/feature/meeting/hooks/use-project-meetings";
+import { useConfirmDeleteProjectModal } from "@/feature/projects/components/confirm-delete-project-modal";
+import { toast } from "sonner";
 
 export default function ProjectDetailPage({
   params,
@@ -45,6 +47,8 @@ export default function ProjectDetailPage({
     handleStartChange,
     handleSaveChange,
     handleDeleteProject,
+    startingTargets,
+    savingTarget,
   } = useProjectDetail(String(id));
 
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -52,6 +56,7 @@ export default function ProjectDetailPage({
     null
   );
   const { meetings, loading, error, refresh } = useProjectMeetings();
+  const { confirm, Modal: ConfirmDeleteModal } = useConfirmDeleteProjectModal();
 
   const handleRedirect = () => {
     router.push(`/uploads`);
@@ -157,7 +162,6 @@ export default function ProjectDetailPage({
           open={reviewOpen}
           onOpenChange={(o) => setReviewOpen(o)}
           meetingId={selectedMeetingId}
-          onSaved={() => {}}
         />
 
         {/* Seção de Configuração de Board */}
@@ -220,19 +224,37 @@ export default function ProjectDetailPage({
                 <Button
                   variant="destructive"
                   className="w-full"
-                  onClick={handleDeleteProject}
+                  onClick={async () => {
+                    toast.warning("Confirme a exclusão do projeto.");
+                    const ok = await confirm();
+                    if (!ok) return;
+                    try {
+                      await handleDeleteProject();
+                      toast.success("Projeto excluído com sucesso.");
+                      router.push("/projects");
+                    } catch (e: any) {
+                      toast.error(e?.message || "Falha ao excluir projeto.");
+                    }
+                  }}
                 >
                   Excluir projeto
                 </Button>
               </>
             ) : !changing ? (
-              <Button className="w-full gap-2" onClick={handleStartChange}>
-                <SquareKanban className="h-4 w-4" aria-hidden="true" />
+              <Button className="w-full gap-2" onClick={handleStartChange} disabled={startingTargets}>
+                {startingTargets ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <SquareKanban className="h-4 w-4" aria-hidden="true" />
+                )}
                 Alterar Board
               </Button>
             ) : (
               <>
-                <Button className="gap-2" onClick={handleSaveChange}>
+                <Button className="gap-2" onClick={handleSaveChange} disabled={savingTarget}>
+                  {savingTarget ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : null}
                   Salvar
                 </Button>
                 <Button variant="outline" onClick={() => setChanging(false)}>
@@ -242,6 +264,7 @@ export default function ProjectDetailPage({
             )}
           </CardFooter>
         </Card>
+        {ConfirmDeleteModal}
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useCallback, useState } from "react";
+import { toast } from "sonner";
 import { useSession } from "next-auth/react";
 import ToolIntegrationCard from "@/components/connections/tool-integration-card";
 import {
@@ -99,7 +100,7 @@ export default function ConnectionsPage() {
         return;
       }
     } catch (e: any) {
-      alert(e?.message || "Falha ao conectar");
+      toast.error(e?.message || "Falha ao conectar");
     } finally {
       setLoadingState((prev) => ({ ...prev, [provider]: false }));
     }
@@ -112,7 +113,7 @@ export default function ConnectionsPage() {
       await disconnectProvider(provider);
       setConnectedState((prev) => ({ ...prev, [provider]: false }));
     } catch (e: any) {
-      alert(e?.message || "Falha ao desconectar");
+      toast.error(e?.message || "Falha ao desconectar");
     } finally {
       setLoadingState((prev) => ({ ...prev, [provider]: false }));
     }

@@ -10,7 +10,7 @@ export interface MeetingListItem {
 }
 
 export interface Task {
-  id?: string;
+  id: string;
   title: string;
   description: string;
   priority: string;
@@ -43,4 +43,27 @@ export async function uploadTranscript(file: File): Promise<ProcessedMeeting> {
 
 export async function deleteMeeting(meetingId: string): Promise<void> {
   await api.delete(`/api/meetings/${meetingId}`);
+}
+
+export async function deleteTask(
+  meetingId: string,
+  taskId: string
+): Promise<string> {
+  const res = await api.delete(`/api/meetings/${meetingId}/tasks/${taskId}`);
+  return (res.data?.message as string) ?? "Task deletada com sucesso";
+}
+
+export async function updateTask(
+  meetingId: string,
+  taskId: string,
+  payload: {
+    title: string;
+    description: string;
+    priority: string;
+    assignee?: string | null;
+    due_date?: string | null;
+  }
+): Promise<string> {
+  const res = await api.put(`/api/meetings/${meetingId}/tasks/${taskId}`, payload);
+  return (res.data?.message as string) ?? "Task atualizada com sucesso";
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+
 import { api } from "@/lib/http";
 import type { ProcessedMeeting, Task } from "@/lib/meetings-api";
 
@@ -10,7 +11,6 @@ export default function useMeetingReview(meetingId: string | null) {
   const [meeting, setMeeting] = useState<ProcessedMeeting | null>(null);
   const [loading, setLoading] = useState(false);
   const [savingTaskIds, setSavingTaskIds] = useState<Set<string>>(new Set());
-  const [error, setError] = useState<string | null>(null);
   const timers = useRef<Record<string, any>>({});
 
   useEffect(() => {
@@ -18,12 +18,11 @@ export default function useMeetingReview(meetingId: string | null) {
     let mounted = true;
     (async () => {
       setLoading(true);
-      setError(null);
       try {
         const { data } = await api.get(`/api/meetings/${meetingId}`);
         if (mounted) setMeeting(data);
       } catch (e: any) {
-        setError(e?.message || "Falha ao carregar reunião");
+        console.error(e?.message || "Falha ao carregar reunião");
       } finally {
         setLoading(false);
       }
@@ -51,7 +50,7 @@ export default function useMeetingReview(meetingId: string | null) {
             : prev
         );
       } catch (e: any) {
-        setError(e?.message || "Falha ao salvar alterações");
+        console.error(e?.message || "Falha ao salvar alterações");
       } finally {
         setSavingTaskIds((prev) => {
           const next = new Set(prev);
@@ -65,7 +64,6 @@ export default function useMeetingReview(meetingId: string | null) {
   return {
     meeting,
     loading,
-    error,
     savingTaskIds,
     scheduleUpdate,
   };

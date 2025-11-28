@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { setAccessToken } from "@/lib/http";
 import { getProject, updateProjectTarget, deleteProject } from "@/lib/projects";
 import { listTargets, checkConnected } from "@/lib/integrations";
+import { toast } from "sonner";
 
 type Project = {
   id: number;
@@ -22,6 +23,8 @@ export default function useProjectDetail(id: string) {
   const [changing, setChanging] = useState(false);
   const [selectedTargetId, setSelectedTargetId] = useState("");
   const [providerDisconnected, setProviderDisconnected] = useState(false);
+  const [startingTargets, setStartingTargets] = useState(false);
+  const [savingTarget, setSavingTarget] = useState(false);
 
   useEffect(() => {
     if (authStatus !== "authenticated" || !session) return;
@@ -43,6 +46,11 @@ export default function useProjectDetail(id: string) {
 
   const handleStartChange = async () => {
     if (!project) return;
+    if (providerDisconnected) {
+      toast.warning("Ferramenta desconectada. Conecte-se para alterar o destino.");
+      return;
+    }
+    setStartingTargets(true);
     try {
       const data: any = await listTargets(project.provider);
       const items = Array.isArray(data?.boards)
@@ -59,20 +67,38 @@ export default function useProjectDetail(id: string) {
       setTargets(items);
       setSelectedTargetId(items[0]?.id ?? "");
       setChanging(true);
-    } catch {}
+      if (items.length === 0) {
+        toast.warning("Nenhum destino disponível neste provedor.");
+      }
+    } catch {
+      toast.error("Falha ao carregar destinos para alteração.");
+    } finally {
+      setStartingTargets(false);
+    }
   };
 
   const handleSaveChange = async () => {
-    if (!project || !selectedTargetId) return;
+    if (!project || !selectedTargetId) {
+      toast.warning("Selecione um destino antes de salvar.");
+      return;
+    }
+    setSavingTarget(true);
     const pid = Number(id);
     const target = targets.find((t) => t.id === selectedTargetId);
-    const updated = await updateProjectTarget(pid, {
-      target_id: selectedTargetId,
-      target_name: target?.name,
-      provider: project.provider,
-    });
-    setProject(updated);
-    setChanging(false);
+    try {
+      const updated = await updateProjectTarget(pid, {
+        target_id: selectedTargetId,
+        target_name: target?.name,
+        provider: project.provider,
+      });
+      setProject(updated);
+      setChanging(false);
+      toast.success("Destino atualizado com sucesso.");
+    } catch {
+      toast.error("Falha ao salvar alteração de destino.");
+    } finally {
+      setSavingTarget(false);
+    }
   };
 
   const handleDeleteProject = async () => {
@@ -91,5 +117,7 @@ export default function useProjectDetail(id: string) {
     handleStartChange,
     handleSaveChange,
     handleDeleteProject,
+    startingTargets,
+    savingTarget,
   };
 }

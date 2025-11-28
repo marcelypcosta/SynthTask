@@ -9,10 +9,12 @@ import {
   type ProjectListItem,
 } from "@/lib/projects";
 import { checkConnected } from "@/lib/integrations";
+import { useConfirmDeleteProjectModal } from "../components/confirm-delete-project-modal";
 
 export default function useProjectsList() {
   const { data: session, status } = useSession();
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
+  const { confirm, Modal } = useConfirmDeleteProjectModal();
 
   useEffect(() => {
     let mounted = true;
@@ -56,14 +58,12 @@ export default function useProjectsList() {
   }
 
   async function handleDelete(id: number) {
-    const ok =
-      typeof window !== "undefined"
-        ? window.confirm("Tem certeza que deseja excluir este projeto?")
-        : true;
+    const ok = await confirm();
     if (!ok) return;
+
     await deleteProject(id);
     setProjects((prev) => prev.filter((p) => p.id !== id));
   }
 
-  return { projects, handleCreated, handleDelete };
+  return { projects, handleCreated, handleDelete, ConfirmDeleteModal: Modal };
 }

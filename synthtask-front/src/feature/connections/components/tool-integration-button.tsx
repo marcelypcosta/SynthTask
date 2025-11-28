@@ -1,5 +1,5 @@
 import { Button } from "@/ui/button";
-import { Cable } from "lucide-react";
+import { Cable, Loader2 } from "lucide-react";
 
 export default function ToolIntegrationButton({
   connected,
@@ -20,8 +20,18 @@ export default function ToolIntegrationButton({
       onClick={onClick}
       disabled={loading}
     >
-      <Cable className="w-8 h-8" />
-      {loading ? (connected ? "Desconectando..." : "Conectando...") : connected ? "Desconectar" : "Conectar"}
+      {loading ? (
+        <Loader2 className="w-5 h-5 animate-spin" />
+      ) : (
+        <Cable className="w-5 h-5" />
+      )}
+      {loading
+        ? connected
+          ? "Desconectando..."
+          : "Conectando..."
+        : connected
+        ? "Desconectar"
+        : "Conectar"}
     </Button>
   );
 }

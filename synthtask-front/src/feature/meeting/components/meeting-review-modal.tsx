@@ -15,12 +15,14 @@ import { Field, FieldContent, FieldLabel } from "@/ui/field";
 
 import TaskDeleteButton from "@/feature/tasks/components/task-delete-button";
 import TaskSaveChangeButton from "@/feature/tasks/components/task-save-change-button";
+import CreateNewTaskButton from "@/feature/tasks/components/create-new-task-button";
 
 import type { Task } from "@/lib/meetings-api";
 
 import useMeetingReview from "@/feature/meeting/hooks/use-meeting-review";
 import useDeleteTask from "@/feature/tasks/hooks/use-delete-task";
 import useSaveChangeTask from "@/feature/tasks/hooks/use-save-change-task";
+import useCreateNewTask from "@/feature/tasks/hooks/use-create-new-task";
 
 type Props = {
   open: boolean;
@@ -38,7 +40,7 @@ export default function MeetingReviewModal({
   const [tasks, setTasks] = useState<Task[]>([]);
   const { deleting, deleteTask } = useDeleteTask();
   const { saving, saveTask } = useSaveChangeTask();
-  
+  const { creating, addTask } = useCreateNewTask();
 
   useEffect(() => {
     if (meeting?.tasks) {
@@ -51,8 +53,6 @@ export default function MeetingReviewModal({
       prev.map((t) => (t.id === id ? { ...t, ...changes } : t))
     );
   };
-
-  const saveSingleTask = async (task: Task) => {};
 
   const handleDelete = async (taskId: string) => {
     if (!meetingId) return;
@@ -83,77 +83,97 @@ export default function MeetingReviewModal({
           </div>
         )}
 
+        <div className="flex items-center justify-between">
+          {!loading && (
+            <p className="text-sm text-zinc-500">
+              {tasks.length} tasks identificadas.
+            </p>
+          )}
+
+          {!loading && (
+            <div className="flex flex-col gap-6">
+              <div className="flex justify-end">
+                <CreateNewTaskButton
+                  onClick={async () => {
+                    if (!meetingId) return;
+                    const res = await addTask(meetingId);
+                    if (res.success && res.task) {
+                      setTasks((prev) => [res.task!, ...prev]);
+                    }
+                  }}
+                  disabled={creating}
+                  loading={creating}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
         {!loading && (
-          <p className="text-sm text-zinc-500">
-            {tasks.length} tasks identificadas.
-          </p>
-        )}
-
-        {!loading && tasks.length > 0 && (
           <div className="flex flex-col gap-6">
-            
-            {tasks.map((t) => (
-              <div
-                key={t.id}
-                className="flex flex-col items-end space-y-4 rounded-md border p-4 transition-shadow hover:shadow-sm bg-slate-50"
-              >
-                <Field>
-                  <FieldLabel>Tarefa</FieldLabel>
-                  <FieldContent>
-                    <Input
-                      className="bg-white"
-                      value={t.title}
-                      onChange={(e) =>
-                        updateLocalTask(t.id, { title: e.target.value })
-                      }
-                    />
-                  </FieldContent>
-                </Field>
+            {tasks.length > 0 &&
+              tasks.map((t) => (
+                <div
+                  key={t.id}
+                  className="flex flex-col items-end space-y-4 rounded-md border p-4 transition-shadow hover:shadow-sm bg-slate-50"
+                >
+                  <Field>
+                    <FieldLabel>Tarefa</FieldLabel>
+                    <FieldContent>
+                      <Input
+                        className="bg-white"
+                        value={t.title}
+                        onChange={(e) =>
+                          updateLocalTask(t.id, { title: e.target.value })
+                        }
+                      />
+                    </FieldContent>
+                  </Field>
 
-                <Field>
-                  <FieldLabel>Descrição</FieldLabel>
-                  <FieldContent>
-                    <Input
-                      className="bg-white"
-                      value={t.description ?? ""}
-                      onChange={(e) =>
-                        updateLocalTask(t.id, {
-                          description: e.target.value,
-                        })
-                      }
-                    />
-                  </FieldContent>
-                </Field>
+                  <Field>
+                    <FieldLabel>Descrição</FieldLabel>
+                    <FieldContent>
+                      <Input
+                        className="bg-white"
+                        value={t.description ?? ""}
+                        onChange={(e) =>
+                          updateLocalTask(t.id, {
+                            description: e.target.value,
+                          })
+                        }
+                      />
+                    </FieldContent>
+                  </Field>
 
-                <Field>
-                  <FieldLabel>Responsável</FieldLabel>
-                  <FieldContent>
-                    <Input
-                      className="bg-white"
-                      value={t.assignee ?? ""}
-                      onChange={(e) =>
-                        updateLocalTask(t.id, { assignee: e.target.value })
-                      }
-                    />
-                  </FieldContent>
-                </Field>
+                  <Field>
+                    <FieldLabel>Responsável</FieldLabel>
+                    <FieldContent>
+                      <Input
+                        className="bg-white"
+                        value={t.assignee ?? ""}
+                        onChange={(e) =>
+                          updateLocalTask(t.id, { assignee: e.target.value })
+                        }
+                      />
+                    </FieldContent>
+                  </Field>
 
-                <Field>
-                  <FieldLabel>Data de Entrega</FieldLabel>
-                  <FieldContent>
-                    <Input
-                      className="bg-white"
-                      type="date"
-                      value={t.due_date ?? ""}
-                      onChange={(e) =>
-                        updateLocalTask(t.id, {
-                          due_date: e.target.value || null,
-                        })
-                      }
-                    />
-                  </FieldContent>
-                </Field>
-                <div className="flex gap-1">
+                  <Field>
+                    <FieldLabel>Data de Entrega</FieldLabel>
+                    <FieldContent>
+                      <Input
+                        className="bg-white"
+                        type="date"
+                        value={t.due_date ?? ""}
+                        onChange={(e) =>
+                          updateLocalTask(t.id, {
+                            due_date: e.target.value || null,
+                          })
+                        }
+                      />
+                    </FieldContent>
+                  </Field>
+                  <div className="flex gap-1">
                     <TaskSaveChangeButton
                       onClick={async () => {
                         if (!meetingId) return;
@@ -166,9 +186,9 @@ export default function MeetingReviewModal({
                       onClick={() => handleDelete(t.id)}
                       disabled={deleting}
                     />
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
         )}
       </DialogContent>

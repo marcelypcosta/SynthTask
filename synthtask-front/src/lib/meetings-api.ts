@@ -67,3 +67,17 @@ export async function updateTask(
   const res = await api.put(`/api/meetings/${meetingId}/tasks/${taskId}`, payload);
   return (res.data?.message as string) ?? "Task atualizada com sucesso";
 }
+
+export async function createTask(
+  meetingId: string,
+  payload: {
+    title: string;
+    description: string;
+    priority: string;
+    assignee?: string | null;
+    due_date?: string | null;
+  }
+): Promise<Task> {
+  const res = await api.post(`/api/meetings/${meetingId}/tasks`, payload);
+  return res.data as Task;
+}

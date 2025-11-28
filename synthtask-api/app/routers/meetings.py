@@ -230,6 +230,36 @@ async def update_task(
     return MessageResponse(message="Task atualizada com sucesso")
 
 
+@router.post("/{meeting_id}/tasks", response_model=Task)
+async def create_task(
+    meeting_id: str,
+    task_data: TaskUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create a new task in a meeting"""
+    if not validate_object_id(meeting_id):
+        raise HTTPException(status_code=400, detail="ID de reunião inválido")
+
+    meeting = await get_user_meeting(meeting_id, current_user["id"])
+
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Reunião não encontrada")
+
+    new_task = {
+        "id": str(ObjectId()),
+        "title": task_data.title,
+        "description": task_data.description,
+        "priority": task_data.priority,
+        "assignee": task_data.assignee,
+        "due_date": task_data.due_date,
+    }
+
+    tasks = meeting["tasks"] + [new_task]
+    await update_meeting_tasks(meeting_id, tasks)
+
+    return Task(**new_task)
+
+
 @router.delete("/{meeting_id}/tasks/{task_id}", response_model=MessageResponse)
 async def delete_task(
     meeting_id: str,

@@ -101,13 +101,21 @@ export function getTrelloAuthUrl(origin: string): string {
 }
 
 export function getJiraAuthUrl(origin: string): string {
-  const clientId = process.env.NEXT_PUBLIC_JIRA_CLIENT_ID;
+  const clientIdRaw = process.env.NEXT_PUBLIC_JIRA_CLIENT_ID || "";
+  const clientId = clientIdRaw.replace(/[`\s]+/g, "").trim();
   if (!clientId) {
     throw new Error("NEXT_PUBLIC_JIRA_CLIENT_ID não configurada");
   }
+  const invalidClientId = /[<>\s]/.test(clientId) || clientId.length < 10;
+  if (invalidClientId) {
+    throw new Error("NEXT_PUBLIC_JIRA_CLIENT_ID inválido");
+  }
 
   const audience = "api.atlassian.com";
-  const scopes = [
+  const defaultScopes = [
+    "openid",
+    "profile",
+    "email",
     "read:jira-work",
     "read:issue:jira",
     "write:issue:jira",
@@ -118,19 +126,27 @@ export function getJiraAuthUrl(origin: string): string {
     "read:issue-type:jira",
     "offline_access",
   ].join(" ");
+  const scopes = process.env.NEXT_PUBLIC_JIRA_SCOPES || defaultScopes;
 
-  const returnUrl =
+  const redirectRaw =
+    process.env.NEXT_PUBLIC_JIRA_REDIRECT_URI ||
     process.env.NEXT_PUBLIC_JIRA_REDIRECT_URL ||
     `${origin}/jira/callback`;
+  const returnUrl = redirectRaw.replace(/`/g, "").trim();
+  const invalidRedirect = !/^https?:\/\/.+/.test(returnUrl);
+  if (invalidRedirect) {
+    throw new Error("NEXT_PUBLIC_JIRA_REDIRECT_URI inválido");
+  }
 
   const state =
     typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
       : Math.random().toString(36).slice(2);
 
-  const authBase =
+  const authBaseRaw =
     process.env.NEXT_PUBLIC_JIRA_AUTH_URL ||
     "https://auth.atlassian.com/authorize";
+  const authBase = authBaseRaw.replace(/`/g, "").trim();
 
   const url = `${authBase}?audience=${encodeURIComponent(
     audience

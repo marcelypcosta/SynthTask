@@ -50,9 +50,10 @@ export default function JiraCallbackPage() {
 
       const origin =
         typeof window !== "undefined" ? window.location.origin : "";
-      const redirect_uri =
-        process.env.NEXT_PUBLIC_JIRA_REDIRECT_URI ||
+      const redirect_env =
+        process.env.NEXT_PUBLIC_JIRA_REDIRECT_URL ||
         `${origin}/jira/callback`;
+      const redirect_uri = redirect_env.replace(/`/g, "").trim();
 
       try {
         await api.post("/api/integrations/jira/oauth/exchange", {

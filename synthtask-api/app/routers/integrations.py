@@ -55,8 +55,10 @@ class JiraOAuthExchangePayload(BaseModel):
 
 # Seção: Helpers
 def _exchange_code_for_token(code: str, redirect_uri: str) -> Dict[str, Any]:
-    client_id = os.getenv("JIRA_CLIENT_ID")
-    client_secret = os.getenv("JIRA_CLIENT_SECRET")
+    client_id_raw = os.getenv("JIRA_CLIENT_ID") or ""
+    client_secret_raw = os.getenv("JIRA_CLIENT_SECRET") or ""
+    client_id = client_id_raw.replace("`", "").strip()
+    client_secret = client_secret_raw.replace("`", "").strip()
     if not client_id or not client_secret:
         raise HTTPException(status_code=500, detail="Configuração JIRA_CLIENT_ID/JIRA_CLIENT_SECRET ausente")
 
@@ -69,11 +71,27 @@ def _exchange_code_for_token(code: str, redirect_uri: str) -> Dict[str, Any]:
     }
     resp = requests.post(ATLASSIAN_TOKEN_URL, json=payload, headers={"Content-Type": "application/json"})
     if resp.status_code >= 400:
-        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+        try:
+            err = resp.json() or {}
+            msg = err.get("error_description") or err.get("error") or resp.text
+        except Exception:
+            msg = resp.text
+        raise HTTPException(
+            status_code=resp.status_code,
+            detail=f"{msg}; verifique JIRA_CLIENT_ID/JIRA_CLIENT_SECRET e JIRA_REDIRECT_URI/JIRA_REDIRECT_URL"
+        )
     data = resp.json()
     if not data.get("access_token"):
         raise HTTPException(status_code=400, detail="Não foi possível obter access_token")
     return data
+
+def _get_userinfo(access_token: str) -> Dict[str, Any]:
+    url = "https://api.atlassian.com/oauth/userinfo"
+    resp = requests.get(url, headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"})
+    if resp.status_code >= 400:
+        return {}
+    d = resp.json() or {}
+    return d if isinstance(d, dict) else {}
 
 def _get_accessible_resources(access_token: str) -> List[Dict[str, Any]]:
     resp = requests.get(
@@ -111,7 +129,8 @@ def _select_jira_resource(resources: List[Dict[str, Any]]) -> Dict[str, Any]:
 async def jira_oauth_exchange(payload: JiraOAuthExchangePayload, current_user: dict = Depends(get_current_user)):
     """Trocar authorization code do Jira por tokens e salvar credenciais OAuth."""
     code = payload.code
-    redirect_uri = payload.redirect_uri or os.getenv("JIRA_REDIRECT_URI")
+    redirect_env = payload.redirect_uri or os.getenv("JIRA_REDIRECT_URI") or os.getenv("JIRA_REDIRECT_URL")
+    redirect_uri = (redirect_env or "").replace("`", "").strip()
     if not code or not redirect_uri:
         raise HTTPException(status_code=400, detail="code e redirect_uri são obrigatórios")
 
@@ -129,6 +148,9 @@ async def jira_oauth_exchange(payload: JiraOAuthExchangePayload, current_user: d
     if not cloud_id:
         raise HTTPException(status_code=400, detail="Não foi possível determinar o cloud_id do Jira")
 
+    info = _get_userinfo(access_token)
+    user_email = info.get("email")
+    user_account_id = info.get("sub")
     storage = IntegrationStorage(provider="jira")
     await storage.save(
         current_user["id"],
@@ -141,9 +163,11 @@ async def jira_oauth_exchange(payload: JiraOAuthExchangePayload, current_user: d
             "cloud_id": cloud_id,
             "scopes": selected_scopes,
             "site_url": site_url,
+            "user_email": user_email,
+            "user_account_id": user_account_id,
         },
     )
-    return {"message": "Jira conectado via OAuth", "cloud_id": cloud_id, "scopes": selected_scopes, "site_url": site_url}
+    return {"message": "Jira conectado via OAuth", "cloud_id": cloud_id, "scopes": selected_scopes, "site_url": site_url, "user_email": user_email, "user_account_id": user_account_id}
 
 
 @router.get("/{provider}/targets")
@@ -172,7 +196,7 @@ async def trello_members(board_id: str, current_user: dict = Depends(get_current
     """Listar membros do Trello associados a um board."""
     service = get_integration("trello")
     members = await service.get_members(current_user["id"], board_id)  # type: ignore
-    return {"lists": lists}
+    return {"members": members}
 
 
 @router.get("/jira/projects/{project_key}/users")

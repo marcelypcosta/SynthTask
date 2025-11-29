@@ -17,7 +17,7 @@ ATLASSIAN_RESOURCES_URL = "https://api.atlassian.com/oauth/token/accessible-reso
 
 class JiraService(IntegrationService):
     provider_name = "jira"
-    capabilities = ["projects", "create_task"]
+    capabilities = ["projects", "users", "create_task"]
 
     def __init__(self):
         self.storage = IntegrationStorage(provider=self.provider_name)
@@ -205,6 +205,63 @@ class JiraService(IntegrationService):
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
+    async def get_assignable_users(self, user_id: int, project_key: str) -> List[Dict[str, Any]]:
+        creds = await self.get_user_credentials(user_id)
+        use_oauth = bool(creds.get("oauth") and creds.get("access_token") and creds.get("cloud_id"))
+        # Resolve project key when an ID (numeric) is provided
+        key_or_id = str(project_key)
+        resolved_key = key_or_id
+        if key_or_id.isdigit():
+            resolved_key = await self.resolve_project_key(user_id, key_or_id, creds)
+        params = {"project": resolved_key, "maxResults": 50}
+
+        if use_oauth:
+            creds = await self.refresh_oauth_tokens_if_expired(user_id, creds)
+            base = self.jira_api_base_url(creds, use_oauth=True)
+            url = f"{base}/user/assignable/search"
+            headers = {"Accept": "application/json", "Authorization": f"Bearer {creds['access_token']}"}
+            auth = None
+        else:
+            base = self.jira_api_base_url(creds, use_oauth=False)
+            url = f"{base}/user/assignable/search"
+            headers = {"Accept": "application/json"}
+            auth = self.get_basic_auth(creds)
+
+        try:
+            resp = requests.get(url, params=params, auth=auth, headers=headers)
+            if resp.status_code >= 400:
+                # Fallback: if unauthorized due to scope, aggregate users from project roles
+                if resp.status_code in (401, 403):
+                    roles = await self.get_project_roles(user_id, resolved_key)
+                    aggregated: List[Dict[str, Any]] = []
+                    for r in roles:
+                        users = await self.get_project_role_actors(user_id, resolved_key, str(r.get("id")))
+                        aggregated.extend(users)
+                    # Deduplicate by accountId
+                    seen: Set[str] = set()
+                    result: List[Dict[str, Any]] = []
+                    for u in aggregated:
+                        acc = str(u.get("accountId"))
+                        if acc and acc not in seen:
+                            seen.add(acc)
+                            result.append(u)
+                    return result
+                detail = self.parse_jira_error_response(resp)
+                raise HTTPException(status_code=resp.status_code, detail=detail)
+            users = resp.json() or []
+            normalized = []
+            for u in users:
+                normalized.append({
+                    "accountId": u.get("accountId"),
+                    "displayName": u.get("displayName"),
+                    "emailAddress": u.get("emailAddress"),
+                })
+            return normalized
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
     def get_basic_auth(self, creds: Dict[str, Any]) -> Tuple[str, str]:
         return (creds["email"], creds["api_token"])
 
@@ -228,3 +285,136 @@ class JiraService(IntegrationService):
         if use_oauth:
             return f"https://api.atlassian.com/ex/jira/{creds['cloud_id']}/rest/api/3"
         return f"{creds['base_url'].rstrip('/')}/rest/api/3"
+
+    def has_required_user_read_scope(self, scopes: Set[str]) -> bool:
+        return ("read:user:jira" in scopes)
+
+    async def resolve_project_key(self, user_id: int, project_id: str, creds: Dict[str, Any]) -> str:
+        """Resolve a project key from a numeric project id."""
+        use_oauth = bool(creds.get("oauth") and creds.get("access_token") and creds.get("cloud_id"))
+        if use_oauth:
+            creds = await self.refresh_oauth_tokens_if_expired(user_id, creds)
+            base = self.jira_api_base_url(creds, use_oauth=True)
+            url = f"{base}/project/{project_id}"
+            headers = {"Accept": "application/json", "Authorization": f"Bearer {creds['access_token']}"}
+            auth = None
+        else:
+            base = self.jira_api_base_url(creds, use_oauth=False)
+            url = f"{base}/project/{project_id}"
+            headers = {"Accept": "application/json"}
+            auth = self.get_basic_auth(creds)
+        try:
+            resp = requests.get(url, auth=auth, headers=headers)
+            if resp.status_code >= 400:
+                detail = self.parse_jira_error_response(resp)
+                raise HTTPException(status_code=resp.status_code, detail=detail)
+            data = resp.json() or {}
+            key = data.get("key")
+            if not key:
+                raise HTTPException(status_code=404, detail="Projeto não encontrado")
+            return str(key)
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    async def get_project_roles(self, user_id: int, project_key_or_id: str) -> List[Dict[str, Any]]:
+        """List project roles (name and id) for a project using v2 endpoint."""
+        creds = await self.get_user_credentials(user_id)
+        use_oauth = bool(creds.get("oauth") and creds.get("access_token") and creds.get("cloud_id"))
+        # Resolve key if numeric id
+        key_or_id = str(project_key_or_id)
+        resolved_key = key_or_id
+        if key_or_id.isdigit():
+            resolved_key = await self.resolve_project_key(user_id, key_or_id, creds)
+        if use_oauth:
+            creds = await self.refresh_oauth_tokens_if_expired(user_id, creds)
+            base = f"https://api.atlassian.com/ex/jira/{creds['cloud_id']}/rest/api/2"
+            url = f"{base}/project/{resolved_key}/role"
+            headers = {"Accept": "application/json", "Authorization": f"Bearer {creds['access_token']}"}
+            auth = None
+        else:
+            base_url = creds["base_url"].rstrip("/")
+            url = f"{base_url}/rest/api/2/project/{resolved_key}/role"
+            headers = {"Accept": "application/json"}
+            auth = self.get_basic_auth(creds)
+        try:
+            resp = requests.get(url, auth=auth, headers=headers)
+            if resp.status_code >= 400:
+                detail = self.parse_jira_error_response(resp)
+                raise HTTPException(status_code=resp.status_code, detail=detail)
+            data = resp.json() or {}
+            roles: List[Dict[str, Any]] = []
+            # v2 returns map of name -> role url
+            for name, role_url in (data.items() if isinstance(data, dict) else []):
+                # Extract id from URL suffix
+                try:
+                    role_id = str(role_url).rstrip("/").split("/")[-1]
+                except Exception:
+                    role_id = None
+                if role_id:
+                    roles.append({"id": role_id, "name": name})
+            return roles
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    async def get_project_role_actors(self, user_id: int, project_key_or_id: str, role_id: str) -> List[Dict[str, Any]]:
+        """Get user actors for a given project role using v2 endpoint."""
+        creds = await self.get_user_credentials(user_id)
+        use_oauth = bool(creds.get("oauth") and creds.get("access_token") and creds.get("cloud_id"))
+        key_or_id = str(project_key_or_id)
+        resolved_key = key_or_id
+        if key_or_id.isdigit():
+            resolved_key = await self.resolve_project_key(user_id, key_or_id, creds)
+        if use_oauth:
+            creds = await self.refresh_oauth_tokens_if_expired(user_id, creds)
+            base = f"https://api.atlassian.com/ex/jira/{creds['cloud_id']}/rest/api/2"
+            url = f"{base}/project/{resolved_key}/role/{role_id}"
+            headers = {"Accept": "application/json", "Authorization": f"Bearer {creds['access_token']}"}
+            auth = None
+        else:
+            base_url = creds["base_url"].rstrip("/")
+            url = f"{base_url}/rest/api/2/project/{resolved_key}/role/{role_id}"
+            headers = {"Accept": "application/json"}
+            auth = self.get_basic_auth(creds)
+        try:
+            resp = requests.get(url, auth=auth, headers=headers)
+            if resp.status_code >= 400:
+                detail = self.parse_jira_error_response(resp)
+                raise HTTPException(status_code=resp.status_code, detail=detail)
+            data = resp.json() or {}
+            actors = data.get("actors") or []
+            users: List[Dict[str, Any]] = []
+            def is_app_actor(display: str, account_id: str) -> bool:
+                display_lower = (display or "").lower()
+                deny_tokens = [
+                    "automation for jira",
+                    "slack",
+                    "system",
+                    "trello",
+                    "microsoft teams",
+                    "statuspage",
+                    "atlas",
+                    "atlassian",
+                    "proforma",
+                    "jira outlook",
+                    "spreadsheets",
+                ]
+                if any(t in display_lower for t in deny_tokens):
+                    return True
+                if str(account_id).startswith("557058:"):
+                    return True
+                return False
+            for a in actors:
+                if str(a.get("type", "")).startswith("atlassian-user"):
+                    account_id = (a.get("actorUser") or {}).get("accountId")
+                    display = a.get("displayName")
+                    if account_id and not is_app_actor(str(display or ""), str(account_id)):
+                        users.append({"accountId": account_id, "displayName": display})
+            return users
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))

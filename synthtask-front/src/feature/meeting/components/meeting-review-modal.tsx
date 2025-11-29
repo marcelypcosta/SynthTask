@@ -12,12 +12,27 @@ import {
 import { Input } from "@/ui/input";
 import { Skeleton } from "@/ui/skeleton";
 import { Field, FieldContent, FieldLabel } from "@/ui/field";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/ui/select";
 
 import TaskDeleteButton from "@/feature/tasks/components/task-delete-button";
 import TaskSaveChangeButton from "@/feature/tasks/components/task-save-change-button";
 import CreateNewTaskButton from "@/feature/tasks/components/create-new-task-button";
 
 import type { Task } from "@/lib/meetings-api";
+import type { Provider } from "@/types/providers";
+import {
+  listTrelloMembers,
+  TrelloMember,
+  JiraUser,
+  listJiraProjectRoles,
+  listJiraRoleActors,
+} from "@/lib/integrations";
 
 import useMeetingReview from "@/feature/meeting/hooks/use-meeting-review";
 import useDeleteTask from "@/feature/tasks/hooks/use-delete-task";
@@ -28,12 +43,16 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   meetingId: string | null;
+  provider?: Provider | null;
+  targetId?: string | null;
 };
 
 export default function MeetingReviewModal({
   open,
   onOpenChange,
   meetingId,
+  provider = null,
+  targetId = null,
 }: Props) {
   const { meeting, loading } = useMeetingReview(meetingId);
 
@@ -41,6 +60,13 @@ export default function MeetingReviewModal({
   const { deleting, deleteTask } = useDeleteTask();
   const { saving, saveTask } = useSaveChangeTask();
   const { creating, addTask } = useCreateNewTask();
+  const [members, setMembers] = useState<TrelloMember[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [jiraUsers, setJiraUsers] = useState<JiraUser[]>([]);
+  const [jiraLoading, setJiraLoading] = useState(false);
+  const [jiraRoleName, setJiraRoleName] = useState<string | null>(null);
+
+  const normalize = (s: string) => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
   useEffect(() => {
     if (meeting?.tasks) {
@@ -53,6 +79,91 @@ export default function MeetingReviewModal({
       prev.map((t) => (t.id === id ? { ...t, ...changes } : t))
     );
   };
+
+  useEffect(() => {
+    async function loadMembers() {
+      if (!open) return;
+      if (provider !== "trello") return;
+      if (!targetId) return;
+      setMembersLoading(true);
+      try {
+        const data = await listTrelloMembers(targetId);
+        setMembers(data);
+        setTasks((prev) =>
+          prev.map((t) => {
+            if (provider !== "trello") return t;
+            const a = (t.assignee || "").trim();
+            if (!a) return t;
+            const na = normalize(a);
+            const match = data.find((m) => {
+              const fn = normalize(String(m.fullName || ""));
+              const un = normalize(String(m.username || ""));
+              return (
+                fn === na ||
+                un === na ||
+                fn.startsWith(na) ||
+                un.startsWith(na) ||
+                fn.includes(na) ||
+                un.includes(na)
+              );
+            });
+            if (match) return { ...t, assignee: match.id };
+            return t;
+          })
+        );
+      } catch (e) {
+        setMembers([]);
+      } finally {
+        setMembersLoading(false);
+      }
+    }
+    loadMembers();
+  }, [open, provider, targetId]);
+
+  useEffect(() => {
+    async function loadRoleActorsOnly() {
+      if (!open) return;
+      if (provider !== "jira") return;
+      if (!targetId) return;
+      setJiraLoading(true);
+      try {
+        const roles = await listJiraProjectRoles(String(targetId));
+        // Preferir exatamente Administrator; fallback para Member; senão primeiro disponível
+        const preferred =
+          roles.find((r) => r.name.toLowerCase() === "administrator") ||
+          roles.find((r) => r.name.toLowerCase() === "member") ||
+          roles[0];
+        if (preferred) {
+          const users = await listJiraRoleActors(String(targetId), preferred.id);
+          setJiraRoleName(preferred.name);
+          setJiraUsers(users);
+          setTasks((prev) =>
+            prev.map((t) => {
+              if (provider !== "jira") return t;
+              const a = (t.assignee || "").trim();
+              if (!a) return t;
+              const alreadyId = users.some((u) => u.accountId === a);
+              if (alreadyId) return t;
+              const na = normalize(a);
+              const match = users.find((u) => {
+                const dn = normalize(String(u.displayName || ""));
+                return dn === na || dn.startsWith(na) || dn.includes(na);
+              });
+              if (match) return { ...t, assignee: match.accountId };
+              return t;
+            })
+          );
+        } else {
+          setJiraUsers([]);
+        }
+      } catch {
+        setJiraUsers([]);
+      } finally {
+        setJiraLoading(false);
+      }
+    }
+    loadRoleActorsOnly();
+  }, [open, provider, targetId]);
 
   const handleDelete = async (taskId: string) => {
     if (!meetingId) return;
@@ -148,13 +259,67 @@ export default function MeetingReviewModal({
                   <Field>
                     <FieldLabel>Responsável</FieldLabel>
                     <FieldContent>
-                      <Input
-                        className="bg-white"
-                        value={t.assignee ?? ""}
-                        onChange={(e) =>
-                          updateLocalTask(t.id, { assignee: e.target.value })
-                        }
-                      />
+                      {provider === "trello" ? (
+                        <Select
+                          value={t.assignee ?? ""}
+                          onValueChange={(val) =>
+                            updateLocalTask(t.id, { assignee: val })
+                          }
+                          disabled={membersLoading || !targetId}
+                        >
+                          <SelectTrigger className="bg-white">
+                            <SelectValue
+                              placeholder={
+                                membersLoading
+                                  ? "Carregando..."
+                                  : "Selecione o responsável"
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {members.map((m) => (
+                              <SelectItem key={m.id} value={m.id}>
+                                {m.fullName || m.username || m.id}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : provider === "jira" ? (
+                        <Select
+                          value={t.assignee ?? ""}
+                          onValueChange={(val) =>
+                            updateLocalTask(t.id, { assignee: val })
+                          }
+                          disabled={jiraLoading || !targetId}
+                        >
+                          <SelectTrigger className="bg-white">
+                            <SelectValue
+                              placeholder={
+                                jiraLoading
+                                  ? "Carregando..."
+                                  : jiraUsers.length === 0
+                                  ? "Nenhum usuário disponível"
+                                  : "Selecione o responsável"
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {jiraUsers.map((u) => (
+                              <SelectItem key={u.accountId} value={u.accountId}>
+                                {u.displayName || u.accountId}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          className="bg-white"
+                          value={t.assignee ?? ""}
+                          onChange={(e) =>
+                            updateLocalTask(t.id, { assignee: e.target.value })
+                          }
+                        />
+                      )}
                     </FieldContent>
                   </Field>
 

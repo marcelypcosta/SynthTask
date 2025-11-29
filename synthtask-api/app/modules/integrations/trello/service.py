@@ -12,7 +12,7 @@ from app.modules.integrations.storage import IntegrationStorage
 
 class TrelloService(IntegrationService):
     provider_name = "trello"
-    capabilities = ["boards", "lists", "create_task"]
+    capabilities = ["boards", "lists", "members", "create_task"]
     BASE_URL = "https://api.trello.com/1"
 
     def __init__(self):
@@ -49,6 +49,30 @@ class TrelloService(IntegrationService):
             raise HTTPException(status_code=400, detail=f"Erro ao listar listas: {resp.text}")
         return resp.json()
 
+    async def get_members(self, user_id: int, board_id: str) -> List[Dict[str, Any]]:
+        creds = await self.get_user_credentials(user_id)
+        url = f"{self.BASE_URL}/boards/{board_id}/members"
+        params = {"key": creds["api_key"], "token": creds["token"]}
+        try:
+            resp = requests.get(url, params=params, timeout=20)
+            if resp.status_code >= 400:
+                # Propaga o status original para melhor diagnóstico (401/403/404)
+                raise HTTPException(status_code=resp.status_code, detail=f"Erro ao listar membros: {resp.text}")
+            members = resp.json() or []
+            normalized = []
+            for m in members:
+                normalized.append({
+                    "id": m.get("id"),
+                    "username": m.get("username"),
+                    "fullName": m.get("fullName"),
+                    "avatarUrl": m.get("avatarUrl"),
+                })
+            return normalized
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
     def build_card_description(self, task_data: Dict[str, Any]) -> str:
         description = (task_data.get("description") or "") + "\n\n"
         priority = task_data.get("priority")
@@ -79,6 +103,9 @@ class TrelloService(IntegrationService):
         due_date = task_data.get("due_date")
         if due_date:
             params["due"] = due_date
+        assignee = task_data.get("assignee")
+        if assignee:
+            params["idMembers"] = assignee
 
         resp = requests.post(url, params=params)
         if resp.status_code != 200:

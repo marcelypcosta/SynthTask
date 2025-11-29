@@ -46,6 +46,41 @@ export async function listTargets(provider: Provider): Promise<unknown> {
   return data;
 }
 
+export interface TrelloMember {
+  id: string;
+  username?: string;
+  fullName?: string;
+  avatarUrl?: string;
+}
+
+export async function listTrelloMembers(boardId: string): Promise<TrelloMember[]> {
+  const { data } = await api.get(`/api/integrations/trello/boards/${boardId}/members`);
+  return (data?.members as TrelloMember[]) || [];
+}
+
+export interface JiraUser {
+  accountId: string;
+  displayName?: string;
+  emailAddress?: string;
+}
+
+export async function listJiraAssignableUsers(projectKey: string): Promise<JiraUser[]> {
+  const { data } = await api.get(`/api/integrations/jira/projects/${projectKey}/users`);
+  return (data?.users as JiraUser[]) || [];
+}
+
+export interface JiraRole { id: string; name: string }
+
+export async function listJiraProjectRoles(projectKey: string): Promise<JiraRole[]> {
+  const { data } = await api.get(`/api/integrations/jira/projects/${projectKey}/roles`);
+  return (data?.roles as JiraRole[]) || [];
+}
+
+export async function listJiraRoleActors(projectKey: string, roleId: string): Promise<JiraUser[]> {
+  const { data } = await api.get(`/api/integrations/jira/projects/${projectKey}/roles/${roleId}/actors`);
+  return (data?.users as JiraUser[]) || [];
+}
+
 export function getTrelloAuthUrl(origin: string): string {
   const apiKey = process.env.NEXT_PUBLIC_TRELLO_API_KEY;
   if (!apiKey) {

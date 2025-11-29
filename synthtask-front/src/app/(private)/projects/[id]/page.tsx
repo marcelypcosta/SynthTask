@@ -162,6 +162,10 @@ export default function ProjectDetailPage({
           open={reviewOpen}
           onOpenChange={(o) => setReviewOpen(o)}
           meetingId={selectedMeetingId}
+          provider={project?.provider as "trello" | "jira" | undefined}
+          targetId={
+            (changing ? selectedTargetId : project?.target_id) || undefined
+          }
         />
 
         {/* Seção de Configuração de Board */}

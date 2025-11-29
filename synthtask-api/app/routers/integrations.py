@@ -167,6 +167,34 @@ async def trello_lists(board_id: str, current_user: dict = Depends(get_current_u
     lists = await service.get_lists(current_user["id"], board_id)  # type: ignore
     return {"lists": lists}
 
+@router.get("/trello/boards/{board_id}/members")
+async def trello_members(board_id: str, current_user: dict = Depends(get_current_user)):
+    """Listar membros do Trello associados a um board."""
+    service = get_integration("trello")
+    members = await service.get_members(current_user["id"], board_id)  # type: ignore
+    return {"lists": lists}
+
+
+@router.get("/jira/projects/{project_key}/users")
+async def jira_assignable_users(project_key: str, current_user: dict = Depends(get_current_user)):
+    """Listar usuários atribuíveis em um projeto do Jira."""
+    service = get_integration("jira")
+    users = await service.get_assignable_users(current_user["id"], project_key)  # type: ignore
+    return {"users": users}
+
+@router.get("/jira/projects/{project_key}/roles")
+async def jira_project_roles(project_key: str, current_user: dict = Depends(get_current_user)):
+    """Listar roles de um projeto Jira (id e nome)."""
+    service = get_integration("jira")
+    roles = await service.get_project_roles(current_user["id"], project_key)  # type: ignore
+    return {"roles": roles}
+
+@router.get("/jira/projects/{project_key}/roles/{role_id}/actors")
+async def jira_project_role_actors(project_key: str, role_id: str, current_user: dict = Depends(get_current_user)):
+    """Listar usuários (actors do tipo user) de um role do projeto Jira."""
+    service = get_integration("jira")
+    users = await service.get_project_role_actors(current_user["id"], project_key, role_id)  # type: ignore
+    return {"users": users}
 
 @router.post("/{provider}/tasks")
 async def create_task(provider: str, payload: Dict[str, Any], current_user: dict = Depends(get_current_user)):

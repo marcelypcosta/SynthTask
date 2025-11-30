@@ -260,57 +260,77 @@ export default function MeetingReviewModal({
                     <FieldLabel>Responsável</FieldLabel>
                     <FieldContent>
                       {provider === "trello" ? (
-                        <Select
-                          value={t.assignee ?? ""}
-                          onValueChange={(val) =>
-                            updateLocalTask(t.id, { assignee: val })
-                          }
-                          disabled={membersLoading || !targetId}
-                        >
-                          <SelectTrigger className="bg-white">
-                            <SelectValue
-                              placeholder={
-                                membersLoading
-                                  ? "Carregando..."
-                                  : "Selecione o responsável"
-                              }
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {members.map((m) => (
-                              <SelectItem key={m.id} value={m.id}>
-                                {m.fullName || m.username || m.id}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        members.some((m) => m.id === (t.assignee || "").trim()) ? (
+                          <Select
+                            value={t.assignee ?? ""}
+                            onValueChange={(val) =>
+                              updateLocalTask(t.id, { assignee: val })
+                            }
+                            disabled={membersLoading || !targetId}
+                          >
+                            <SelectTrigger className="bg-white">
+                              <SelectValue
+                                placeholder={
+                                  membersLoading
+                                    ? "Carregando..."
+                                    : "Selecione o responsável"
+                                }
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {members.map((m) => (
+                                <SelectItem key={m.id} value={m.id}>
+                                  {m.fullName || m.username || m.id}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            className="bg-white"
+                            value={t.assignee ?? ""}
+                            onChange={(e) =>
+                              updateLocalTask(t.id, { assignee: e.target.value })
+                            }
+                          />
+                        )
                       ) : provider === "jira" ? (
-                        <Select
-                          value={t.assignee ?? ""}
-                          onValueChange={(val) =>
-                            updateLocalTask(t.id, { assignee: val })
-                          }
-                          disabled={jiraLoading || !targetId}
-                        >
-                          <SelectTrigger className="bg-white">
-                            <SelectValue
-                              placeholder={
-                                jiraLoading
-                                  ? "Carregando..."
-                                  : jiraUsers.length === 0
-                                  ? "Nenhum usuário disponível"
-                                  : "Selecione o responsável"
-                              }
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {jiraUsers.map((u) => (
-                              <SelectItem key={u.accountId} value={u.accountId}>
-                                {u.displayName || u.accountId}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        jiraUsers.some((u) => u.accountId === (t.assignee || "").trim()) ? (
+                          <Select
+                            value={t.assignee ?? ""}
+                            onValueChange={(val) =>
+                              updateLocalTask(t.id, { assignee: val })
+                            }
+                            disabled={jiraLoading || !targetId}
+                          >
+                            <SelectTrigger className="bg-white">
+                              <SelectValue
+                                placeholder={
+                                  jiraLoading
+                                    ? "Carregando..."
+                                    : jiraUsers.length === 0
+                                    ? "Nenhum usuário disponível"
+                                    : "Selecione o responsável"
+                                }
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {jiraUsers.map((u) => (
+                                <SelectItem key={u.accountId} value={u.accountId}>
+                                  {u.displayName || u.accountId}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            className="bg-white"
+                            value={t.assignee ?? ""}
+                            onChange={(e) =>
+                              updateLocalTask(t.id, { assignee: e.target.value })
+                            }
+                          />
+                        )
                       ) : (
                         <Input
                           className="bg-white"

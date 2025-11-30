@@ -23,7 +23,7 @@ export async function GET(req: Request) {
 
     // Usa o redirect_uri configurado (deve casar com o valor de authorize)
     const redirect_uri =
-      process.env.NEXT_PUBLIC_JIRA_REDIRECT_URI || `${url.origin}/api/auth/callback/jira`;
+      process.env.NEXT_PUBLIC_JIRA_REDIRECT_URI || `${url.origin}/jira/callback`;
 
     await api.post(
       "/api/integrations/jira/oauth/exchange",

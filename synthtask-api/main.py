@@ -1,3 +1,4 @@
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -8,6 +9,7 @@ from app.routers.meetings import router as meetings_router
 from app.routers.integrations import router as integrations_router
 from app.routers.projects import router as projects_router
 
+logging.basicConfig(level=logging.INFO)
 app = FastAPI(title=settings.APP_NAME, version=settings.VERSION)
 
 # CORS

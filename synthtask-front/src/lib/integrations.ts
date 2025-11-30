@@ -1,7 +1,6 @@
 import { api, AxiosRequestError } from "@/lib/http";
 import type { Provider } from "@/types/providers";
 
-
 export function toProvider(toolName: string): Provider {
   const key = toolName.trim().toLowerCase();
   if (key.includes("trello")) return "trello";
@@ -53,8 +52,12 @@ export interface TrelloMember {
   avatarUrl?: string;
 }
 
-export async function listTrelloMembers(boardId: string): Promise<TrelloMember[]> {
-  const { data } = await api.get(`/api/integrations/trello/boards/${boardId}/members`);
+export async function listTrelloMembers(
+  boardId: string
+): Promise<TrelloMember[]> {
+  const { data } = await api.get(
+    `/api/integrations/trello/boards/${boardId}/members`
+  );
   return (data?.members as TrelloMember[]) || [];
 }
 
@@ -64,20 +67,36 @@ export interface JiraUser {
   emailAddress?: string;
 }
 
-export async function listJiraAssignableUsers(projectKey: string): Promise<JiraUser[]> {
-  const { data } = await api.get(`/api/integrations/jira/projects/${projectKey}/users`);
+export async function listJiraAssignableUsers(
+  projectKey: string
+): Promise<JiraUser[]> {
+  const { data } = await api.get(
+    `/api/integrations/jira/projects/${projectKey}/users`
+  );
   return (data?.users as JiraUser[]) || [];
 }
 
-export interface JiraRole { id: string; name: string }
+export interface JiraRole {
+  id: string;
+  name: string;
+}
 
-export async function listJiraProjectRoles(projectKey: string): Promise<JiraRole[]> {
-  const { data } = await api.get(`/api/integrations/jira/projects/${projectKey}/roles`);
+export async function listJiraProjectRoles(
+  projectKey: string
+): Promise<JiraRole[]> {
+  const { data } = await api.get(
+    `/api/integrations/jira/projects/${projectKey}/roles`
+  );
   return (data?.roles as JiraRole[]) || [];
 }
 
-export async function listJiraRoleActors(projectKey: string, roleId: string): Promise<JiraUser[]> {
-  const { data } = await api.get(`/api/integrations/jira/projects/${projectKey}/roles/${roleId}/actors`);
+export async function listJiraRoleActors(
+  projectKey: string,
+  roleId: string
+): Promise<JiraUser[]> {
+  const { data } = await api.get(
+    `/api/integrations/jira/projects/${projectKey}/roles/${roleId}/actors`
+  );
   return (data?.users as JiraUser[]) || [];
 }
 
@@ -92,8 +111,7 @@ export function getTrelloAuthUrl(origin: string): string {
   const expiration = "never";
   const responseType = "token";
   const returnUrl =
-    process.env.NEXT_PUBLIC_TRELLO_RETURN_URL ||
-    `${origin}/trello/callback`;
+    process.env.NEXT_PUBLIC_TRELLO_RETURN_URL || `${origin}/trello/callback`;
 
   return `https://trello.com/1/authorize?key=${apiKey}&name=${appName}&scope=${scope}&expiration=${expiration}&response_type=${responseType}&return_url=${encodeURIComponent(
     returnUrl
@@ -113,10 +131,11 @@ export function getJiraAuthUrl(origin: string): string {
 
   const audience = "api.atlassian.com";
   const defaultScopes = [
-    "openid",
-    "profile",
-    "email",
+    "read:me",
+    "read:account",
     "read:jira-work",
+    "read:jira-user",
+    "write:jira-work",
     "read:issue:jira",
     "write:issue:jira",
     "read:user:jira",
@@ -124,14 +143,15 @@ export function getJiraAuthUrl(origin: string): string {
     "read:project.property:jira",
     "read:application-role:jira",
     "read:issue-type:jira",
-    "offline_access",
+    "read:group:jira",
+    "read:project-role:jira",
+    "read:avatar:jira",
+    "read:project-category:jira",
   ].join(" ");
-  const scopes = process.env.NEXT_PUBLIC_JIRA_SCOPES || defaultScopes;
+  const scopes = defaultScopes;
 
   const redirectRaw =
-    process.env.NEXT_PUBLIC_JIRA_REDIRECT_URI ||
-    process.env.NEXT_PUBLIC_JIRA_REDIRECT_URL ||
-    `${origin}/jira/callback`;
+    process.env.NEXT_PUBLIC_JIRA_REDIRECT_URL || `${origin}/jira/callback`;
   const returnUrl = redirectRaw.replace(/`/g, "").trim();
   const invalidRedirect = !/^https?:\/\/.+/.test(returnUrl);
   if (invalidRedirect) {
@@ -142,6 +162,11 @@ export function getJiraAuthUrl(origin: string): string {
     typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
       : Math.random().toString(36).slice(2);
+  try {
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem("jira_oauth_state", state);
+    }
+  } catch {}
 
   const authBaseRaw =
     process.env.NEXT_PUBLIC_JIRA_AUTH_URL ||

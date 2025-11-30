@@ -4,6 +4,7 @@
 Router de integrações que fornece endpoints genéricos para provedores plug-and-play.
 """
 from fastapi import APIRouter, Depends, HTTPException
+import logging
 import os
 import time
 import requests
@@ -15,6 +16,7 @@ from app.modules.integrations.registry import get_integration
 from app.modules.integrations.storage import IntegrationStorage
 
 router = APIRouter(prefix="/api/integrations", tags=["Integrations"])
+logger = logging.getLogger("integrations.jira")
 
 @router.post("/{provider}/connect")
 async def connect(provider: str, payload: Dict[str, Any], current_user: dict = Depends(get_current_user)):
@@ -69,6 +71,8 @@ def _exchange_code_for_token(code: str, redirect_uri: str) -> Dict[str, Any]:
         "code": code,
         "redirect_uri": redirect_uri,
     }
+    masked_id = (client_id[:4] + "***") if client_id else ""
+    logger.info(f"Jira OAuth token exchange start status=initiated redirect_uri={redirect_uri} client_id={masked_id}")
     resp = requests.post(ATLASSIAN_TOKEN_URL, json=payload, headers={"Content-Type": "application/json"})
     if resp.status_code >= 400:
         try:
@@ -76,22 +80,34 @@ def _exchange_code_for_token(code: str, redirect_uri: str) -> Dict[str, Any]:
             msg = err.get("error_description") or err.get("error") or resp.text
         except Exception:
             msg = resp.text
+        logger.error(f"Jira OAuth token exchange failed status={resp.status_code} message={msg} redirect_uri={redirect_uri} client_id={masked_id}")
         raise HTTPException(
             status_code=resp.status_code,
             detail=f"{msg}; verifique JIRA_CLIENT_ID/JIRA_CLIENT_SECRET e JIRA_REDIRECT_URI/JIRA_REDIRECT_URL"
         )
     data = resp.json()
     if not data.get("access_token"):
+        logger.error("Jira OAuth token exchange missing access_token")
         raise HTTPException(status_code=400, detail="Não foi possível obter access_token")
+    logger.info("Jira OAuth token exchange success")
     return data
 
 def _get_userinfo(access_token: str) -> Dict[str, Any]:
-    url = "https://api.atlassian.com/oauth/userinfo"
-    resp = requests.get(url, headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"})
-    if resp.status_code >= 400:
+    url1 = "https://api.atlassian.com/oauth/userinfo"
+    resp1 = requests.get(url1, headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"})
+    if resp1.status_code < 400:
+        d = resp1.json() or {}
+        return d if isinstance(d, dict) else {}
+    url2 = "https://api.atlassian.com/me"
+    resp2 = requests.get(url2, headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"})
+    if resp2.status_code >= 400:
         return {}
-    d = resp.json() or {}
-    return d if isinstance(d, dict) else {}
+    data = resp2.json() or {}
+    if not isinstance(data, dict):
+        return {}
+    acct = data.get("account_id") or data.get("accountId")
+    email = data.get("email") or data.get("emailAddress")
+    return {"sub": acct, "email": email}
 
 def _get_accessible_resources(access_token: str) -> List[Dict[str, Any]]:
     resp = requests.get(
@@ -167,6 +183,7 @@ async def jira_oauth_exchange(payload: JiraOAuthExchangePayload, current_user: d
             "user_account_id": user_account_id,
         },
     )
+    logger.info(f"Jira OAuth connected cloud_id={cloud_id} site_url={site_url} user_account_id={user_account_id}")
     return {"message": "Jira conectado via OAuth", "cloud_id": cloud_id, "scopes": selected_scopes, "site_url": site_url, "user_email": user_email, "user_account_id": user_account_id}
 
 

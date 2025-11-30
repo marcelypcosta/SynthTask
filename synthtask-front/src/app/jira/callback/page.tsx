@@ -20,6 +20,28 @@ function extractCode(): string | null {
   }
 }
 
+function extractError(): string | null {
+  try {
+    const search = typeof window !== "undefined" ? window.location.search : "";
+    if (!search) return null;
+    const params = new URLSearchParams(search);
+    return params.get("error");
+  } catch {
+    return null;
+  }
+}
+
+function extractState(): string | null {
+  try {
+    const search = typeof window !== "undefined" ? window.location.search : "";
+    if (!search) return null;
+    const params = new URLSearchParams(search);
+    return params.get("state");
+  } catch {
+    return null;
+  }
+}
+
 export default function JiraCallbackPage() {
   const [status, setStatus] = useState<string>("Conectando ao Jira...");
   const [stage, setStage] = useState<"loading" | "success" | "error">("loading");
@@ -42,15 +64,31 @@ export default function JiraCallbackPage() {
       setAccessToken(accessToken);
 
       const code = extractCode();
+      const errorParam = extractError();
+      if (errorParam) {
+        setStatus(`Erro de autorização: ${errorParam}`);
+        setStage("error");
+        return;
+      }
+      const state = extractState();
       if (!code) {
         setStatus("Código de autorização ausente. Volte e tente novamente.");
         setStage("error");
         return;
       }
+      try {
+        const stored = typeof window !== "undefined" ? window.sessionStorage.getItem("jira_oauth_state") : null;
+        if (!stored || !state || stored !== state) {
+          setStatus("Falha de validação do estado. Recomece a autorização.");
+          setStage("error");
+          return;
+        }
+      } catch {}
 
       const origin =
         typeof window !== "undefined" ? window.location.origin : "";
       const redirect_env =
+        process.env.NEXT_PUBLIC_JIRA_REDIRECT_URI ||
         process.env.NEXT_PUBLIC_JIRA_REDIRECT_URL ||
         `${origin}/jira/callback`;
       const redirect_uri = redirect_env.replace(/`/g, "").trim();

@@ -289,6 +289,9 @@ class JiraService(IntegrationService):
     def has_required_user_read_scope(self, scopes: Set[str]) -> bool:
         return ("read:user:jira" in scopes)
 
+    def has_required_project_roles_scope(self, scopes: Set[str]) -> bool:
+        return ("read:project-role:jira" in scopes) or ("read:jira-work" in scopes)
+
     async def resolve_project_key(self, user_id: int, project_id: str, creds: Dict[str, Any]) -> str:
         """Resolve a project key from a numeric project id."""
         use_oauth = bool(creds.get("oauth") and creds.get("access_token") and creds.get("cloud_id"))
@@ -322,6 +325,10 @@ class JiraService(IntegrationService):
         """List project roles (name and id) for a project using v2 endpoint."""
         creds = await self.get_user_credentials(user_id)
         use_oauth = bool(creds.get("oauth") and creds.get("access_token") and creds.get("cloud_id"))
+        if use_oauth:
+            scopes_set = set(creds.get("scopes") or [])
+            if not self.has_required_project_roles_scope(scopes_set):
+                raise HTTPException(status_code=401, detail="Unauthorized; scope does not match (exige read:project-role:jira ou read:jira-work)")
         # Resolve key if numeric id
         key_or_id = str(project_key_or_id)
         resolved_key = key_or_id
@@ -364,6 +371,10 @@ class JiraService(IntegrationService):
         """Get user actors for a given project role using v2 endpoint."""
         creds = await self.get_user_credentials(user_id)
         use_oauth = bool(creds.get("oauth") and creds.get("access_token") and creds.get("cloud_id"))
+        if use_oauth:
+            scopes_set = set(creds.get("scopes") or [])
+            if not self.has_required_project_roles_scope(scopes_set):
+                raise HTTPException(status_code=401, detail="Unauthorized; scope does not match (exige read:project-role:jira ou read:jira-work)")
         key_or_id = str(project_key_or_id)
         resolved_key = key_or_id
         if key_or_id.isdigit():

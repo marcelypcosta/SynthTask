@@ -89,7 +89,6 @@ export default function JiraCallbackPage() {
         typeof window !== "undefined" ? window.location.origin : "";
       const redirect_env =
         process.env.NEXT_PUBLIC_JIRA_REDIRECT_URI ||
-        process.env.NEXT_PUBLIC_JIRA_REDIRECT_URL ||
         `${origin}/jira/callback`;
       const redirect_uri = redirect_env.replace(/`/g, "").trim();
 
@@ -144,10 +143,9 @@ export default function JiraCallbackPage() {
               <span>{status}</span>
             </div>
           )}
-          <div className="w-full flex gap-2 mt-2">
+          <div className="w-full flex flex-col gap-2 mt-2">
             <Button className="w-full gap-2" onClick={() => (window.location.href = "/connections")}> 
-              <ArrowRight className="h-4 w-4" />
-              Ir para Conexões
+              Ir para página de Conexões
             </Button>
             {stage === "error" && (
               <Button variant="outline" className="w-full" onClick={() => (window.location.href = "/connections")}>

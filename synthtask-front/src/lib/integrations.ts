@@ -19,6 +19,17 @@ export async function checkConnected(provider: Provider): Promise<boolean> {
   }
 }
 
+export async function getConnectionStatus(provider: Provider): Promise<{ connected: boolean; accountEmail?: string | null }> {
+  try {
+    const { data } = await api.get(`/api/integrations/${provider}/status`);
+    return { connected: Boolean(data?.connected), accountEmail: (data?.account_email as string) ?? null };
+  } catch (e) {
+    const err = e as AxiosRequestError;
+    if (err.status === 400 || err.status === 401) return { connected: false, accountEmail: null };
+    return { connected: false, accountEmail: null };
+  }
+}
+
 export async function connectProvider(
   provider: Provider,
   credentials: Record<string, unknown>
@@ -148,10 +159,18 @@ export function getJiraAuthUrl(origin: string): string {
     "read:avatar:jira",
     "read:project-category:jira",
   ].join(" ");
-  const scopes = defaultScopes;
+  const envScopesRaw = process.env.NEXT_PUBLIC_JIRA_SCOPES;
+  const scopes = (() => {
+    if (!envScopesRaw) return defaultScopes;
+    const cleaned = envScopesRaw.replace(/`/g, "").trim();
+    const parts = cleaned.split(/[\s,]+/).filter(Boolean);
+    if (!parts.length) return defaultScopes;
+    return parts.join(" ");
+  })();
 
   const redirectRaw =
-    process.env.NEXT_PUBLIC_JIRA_REDIRECT_URL || `${origin}/jira/callback`;
+    process.env.NEXT_PUBLIC_JIRA_REDIRECT_URI ||
+    `${origin}/jira/callback`;
   const returnUrl = redirectRaw.replace(/`/g, "").trim();
   const invalidRedirect = !/^https?:\/\/.+/.test(returnUrl);
   if (invalidRedirect) {
@@ -181,7 +200,7 @@ export function getJiraAuthUrl(origin: string): string {
     returnUrl
   )}&state=${encodeURIComponent(
     state
-  )}&response_type=code&prompt=consent`;
+  )}&response_type=code&prompt=login`;
 
   return url;
 }

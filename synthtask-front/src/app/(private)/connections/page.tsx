@@ -6,6 +6,7 @@ import ToolIntegrationCard from "@/components/connections/tool-integration-card"
 import {
   toProvider,
   checkConnected,
+  getConnectionStatus,
   disconnectProvider,
   getTrelloAuthUrl,
   getJiraAuthUrl,
@@ -33,6 +34,7 @@ export default function ConnectionsPage() {
     trello: false,
   });
   const [isConnectionsLoaded, setIsConnectionsLoaded] = useState(false);
+  const [emailState, setEmailState] = useState<Record<Provider, string | null>>({ jira: null, trello: null });
 
   useEffect(() => {
     let mounted = true;
@@ -46,16 +48,16 @@ export default function ConnectionsPage() {
 
       try {
         const [trelloRes, jiraRes] = await Promise.allSettled([
-          checkConnected("trello"),
-          checkConnected("jira"),
+          getConnectionStatus("trello"),
+          getConnectionStatus("jira"),
         ]);
 
-        const trello =
-          trelloRes.status === "fulfilled" ? trelloRes.value : false;
-        const jira = jiraRes.status === "fulfilled" ? jiraRes.value : false;
+        const trelloConn = trelloRes.status === "fulfilled" ? trelloRes.value : { connected: false, accountEmail: null };
+        const jiraConn = jiraRes.status === "fulfilled" ? jiraRes.value : { connected: false, accountEmail: null };
 
         if (!mounted) return;
-        setConnectedState({ trello, jira });
+        setConnectedState({ trello: trelloConn.connected, jira: jiraConn.connected });
+        setEmailState({ trello: trelloConn.accountEmail ?? null, jira: jiraConn.accountEmail ?? null });
       } catch (e) {
         console.warn("Falha ao verificar conexões:", e);
       } finally {
@@ -146,6 +148,7 @@ export default function ConnectionsPage() {
                 toolName={t.name}
                 connected={Boolean(connectedState[t.provider])}
                 loading={Boolean(loadingState[t.provider])}
+                accountEmail={emailState[t.provider] ?? undefined}
                 onClick={() => handleConnect(t.name)}
               />
             ))}
@@ -161,6 +164,7 @@ export default function ConnectionsPage() {
                   toolName={t.name}
                   connected={Boolean(connectedState[t.provider])}
                   loading={Boolean(loadingState[t.provider])}
+                  accountEmail={emailState[t.provider] ?? undefined}
                   onClick={() => handleDisconnect(t.name)}
                 />
               </div>

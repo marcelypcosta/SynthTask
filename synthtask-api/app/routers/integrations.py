@@ -37,13 +37,18 @@ async def disconnect(provider: str, current_user: dict = Depends(get_current_use
 
 @router.get("/{provider}/status")
 async def status(provider: str, current_user: dict = Depends(get_current_user)):
-    """Verifica se há credenciais armazenadas para o provedor (sem chamar APIs externas)."""
     service = get_integration(provider)
     try:
         creds = await service.get_user_credentials(current_user["id"])
-        return {"connected": True, "provider": provider, "oauth": bool(creds.get("oauth"))}
+        return {
+            "connected": True,
+            "provider": provider,
+            "oauth": bool(creds.get("oauth")),
+            "account_email": creds.get("user_email") or creds.get("email"),
+            "account_id": creds.get("user_account_id") or creds.get("account_id"),
+            "site_url": creds.get("site_url") or creds.get("base_url"),
+        }
     except Exception:
-        # Sem credenciais ou inválidas
         raise HTTPException(status_code=400, detail="Credenciais não configuradas")
 
 # Seção: Constantes
@@ -73,18 +78,60 @@ def _exchange_code_for_token(code: str, redirect_uri: str) -> Dict[str, Any]:
     }
     masked_id = (client_id[:4] + "***") if client_id else ""
     logger.info(f"Jira OAuth token exchange start status=initiated redirect_uri={redirect_uri} client_id={masked_id}")
-    resp = requests.post(ATLASSIAN_TOKEN_URL, json=payload, headers={"Content-Type": "application/json"})
+    resp = requests.post(ATLASSIAN_TOKEN_URL, json=payload, headers={"Content-Type": "application/json", "Accept": "application/json"})
     if resp.status_code >= 400:
-        try:
-            err = resp.json() or {}
-            msg = err.get("error_description") or err.get("error") or resp.text
-        except Exception:
-            msg = resp.text
-        logger.error(f"Jira OAuth token exchange failed status={resp.status_code} message={msg} redirect_uri={redirect_uri} client_id={masked_id}")
-        raise HTTPException(
-            status_code=resp.status_code,
-            detail=f"{msg}; verifique JIRA_CLIENT_ID/JIRA_CLIENT_SECRET e JIRA_REDIRECT_URI/JIRA_REDIRECT_URL"
+        # Tentar fallback com application/x-www-form-urlencoded (alguns ambientes exigem esta forma)
+        form_payload = {
+            "grant_type": "authorization_code",
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "code": code,
+            "redirect_uri": redirect_uri,
+        }
+        resp_form = requests.post(
+            ATLASSIAN_TOKEN_URL,
+            data=form_payload,
+            headers={"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"},
         )
+        if resp_form.status_code >= 400:
+            # Tentar fallback com Basic Auth + form-url-encoded
+            resp_basic = requests.post(
+                ATLASSIAN_TOKEN_URL,
+                data=form_payload,
+                headers={"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"},
+                auth=(client_id, client_secret),
+            )
+            if resp_basic.status_code >= 400:
+                try:
+                    errb = resp_basic.json() or {}
+                    msgb = errb.get("error_description") or errb.get("error") or resp_basic.text
+                except Exception:
+                    msgb = resp_basic.text
+                logger.error(
+                    f"Jira OAuth token exchange failed status={resp_basic.status_code} message={msgb} redirect_uri={redirect_uri} client_id={masked_id}"
+                )
+                raise HTTPException(
+                    status_code=resp_basic.status_code,
+                    detail=f"{msgb}; verifique JIRA_CLIENT_ID/JIRA_CLIENT_SECRET e JIRA_REDIRECT_URI/JIRA_REDIRECT_URL"
+                )
+            try:
+                err = resp_form.json() or {}
+                msg = err.get("error_description") or err.get("error") or resp_form.text
+            except Exception:
+                msg = resp_form.text
+            logger.error(
+                f"Jira OAuth token exchange failed status={resp_form.status_code} message={msg} redirect_uri={redirect_uri} client_id={masked_id}"
+            )
+            raise HTTPException(
+                status_code=resp_form.status_code,
+                detail=f"{msg}; verifique JIRA_CLIENT_ID/JIRA_CLIENT_SECRET e JIRA_REDIRECT_URI/JIRA_REDIRECT_URL"
+            )
+        data = resp_form.json()
+        if not data.get("access_token"):
+            logger.error("Jira OAuth token exchange missing access_token (form)")
+            raise HTTPException(status_code=400, detail="Não foi possível obter access_token")
+        logger.info("Jira OAuth token exchange success (form)")
+        return data
     data = resp.json()
     if not data.get("access_token"):
         logger.error("Jira OAuth token exchange missing access_token")

@@ -4,6 +4,7 @@ import ToolIntegrationButton from "../../feature/connections/components/tool-int
 interface ToolIntegrationCardProps {
   toolName: string;
   connected: boolean;
+  accountEmail?: string;
   onClick?: () => void;
   loading?: boolean;
 }
@@ -11,6 +12,7 @@ interface ToolIntegrationCardProps {
 export default function ToolIntegrationCard({
   toolName,
   connected,
+  accountEmail,
   onClick,
   loading,
 }: ToolIntegrationCardProps) {
@@ -23,7 +25,7 @@ export default function ToolIntegrationCard({
         <div>
           <p className="font-medium text-md">{toolName}</p>
           <span className="text-neutral-600 text-sm">
-            {connected ? "Conta conectada" : "Nenhuma conta conectada"}
+            {connected ? (accountEmail ? `Conectado como ${accountEmail}` : "Conta conectada") : "Nenhuma conta conectada"}
           </span>
         </div>
       </div>

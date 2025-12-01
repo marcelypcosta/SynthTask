@@ -23,6 +23,23 @@ class TrelloService(IntegrationService):
         for r in required:
             if r not in payload:
                 raise HTTPException(status_code=400, detail=f"Campo ausente: {r}")
+        # Enriquecer com dados do usuário Trello (username, fullName, email quando disponível)
+        try:
+            url = f"{self.BASE_URL}/members/me"
+            params = {"key": payload["api_key"], "token": payload["token"], "fields": "username,fullName,email"}
+            resp = requests.get(url, params=params, timeout=20)
+            if resp.status_code < 400:
+                me = resp.json() or {}
+                if isinstance(me, dict):
+                    payload["username"] = me.get("username")
+                    payload["fullName"] = me.get("fullName")
+                    # Algumas contas não expõem email via API; use quando presente
+                    email = me.get("email")
+                    if email:
+                        payload["email"] = email
+        except Exception:
+            # Não bloquear o save se enriquecimento falhar
+            pass
         await self.storage.save(user_id, payload)
 
     async def get_user_credentials(self, user_id: int) -> Dict[str, Any]:
@@ -75,10 +92,6 @@ class TrelloService(IntegrationService):
 
     def build_card_description(self, task_data: Dict[str, Any]) -> str:
         description = (task_data.get("description") or "") + "\n\n"
-        priority = task_data.get("priority")
-        if priority:
-            emoji = "🔴" if priority == "Alta" else "🟡" if priority == "Média" else "🟢"
-            description += f"{emoji} **Prioridade:** {priority}\n"
         assignee = task_data.get("assignee")
         if assignee:
             description += f"👤 **Responsável:** {assignee}\n"

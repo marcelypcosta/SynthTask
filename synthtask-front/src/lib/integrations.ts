@@ -124,9 +124,12 @@ export function getTrelloAuthUrl(origin: string): string {
   const returnUrl =
     process.env.NEXT_PUBLIC_TRELLO_RETURN_URL || `${origin}/trello/callback`;
 
-  return `https://trello.com/1/authorize?key=${apiKey}&name=${appName}&scope=${scope}&expiration=${expiration}&response_type=${responseType}&return_url=${encodeURIComponent(
+  const authorizeUrl = `https://trello.com/1/authorize?key=${apiKey}&name=${appName}&scope=${scope}&expiration=${expiration}&response_type=${responseType}&callback_method=fragment&return_url=${encodeURIComponent(
     returnUrl
   )}`;
+
+  const forceLoginUrl = `https://id.atlassian.com/login?continue=${encodeURIComponent(authorizeUrl)}&prompt=login`;
+  return forceLoginUrl;
 }
 
 export function getJiraAuthUrl(origin: string): string {

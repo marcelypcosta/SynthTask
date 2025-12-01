@@ -21,7 +21,6 @@ export default function useSaveChangeTask() {
         const message = await updateTask(meetingId, task.id, {
           title: task.title,
           description: task.description,
-          priority: task.priority,
           assignee: task.assignee ?? null,
           due_date: task.due_date ?? null,
         });

@@ -111,7 +111,6 @@ export default function UploadsPage() {
             <h2 className="text-lg font-semibold text-neutral-800 mb-2">
               Última transcrição processada
             </h2>
-            <p className="text-neutral-700 mb-1">{lastProcessed.summary}</p>
             <p className="text-neutral-600 mb-2">
               Criada em: {formatDate(lastProcessed.created_at)}
             </p>

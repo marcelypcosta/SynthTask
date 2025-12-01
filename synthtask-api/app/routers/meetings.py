@@ -163,11 +163,10 @@ async def get_meetings(current_user: dict = Depends(get_current_user)):
     return [
         {
             "id": str(meeting["_id"]),
-            "summary": meeting["summary"],
             "file_name": meeting.get("file_name"),
             "created_at": meeting["created_at"].isoformat(),
-            "tasks_count": len(meeting["tasks"]),
-            "sent_to_trello": meeting.get("sent_to_trello", False)
+            "tasks_count": len(meeting.get("tasks", [])),
+            "sent_to_trello": meeting.get("sent_to_trello", False),
         }
         for meeting in meetings
     ]
@@ -215,7 +214,6 @@ async def update_task(
                 "id": task_id,
                 "title": task_update.title,
                 "description": task_update.description,
-                "priority": task_update.priority,
                 "assignee": task_update.assignee,
                 "due_date": task_update.due_date
             }
@@ -249,7 +247,6 @@ async def create_task(
         "id": str(ObjectId()),
         "title": task_data.title,
         "description": task_data.description,
-        "priority": task_data.priority,
         "assignee": task_data.assignee,
         "due_date": task_data.due_date,
     }
@@ -329,7 +326,6 @@ async def send_to_trello(
                     task={
                         "title": task.title,
                         "description": task.description,
-                        "priority": task.priority,
                         "assignee": task.assignee,
                         "due_date": task.due_date,
                     },

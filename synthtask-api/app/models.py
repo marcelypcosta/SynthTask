@@ -37,15 +37,12 @@ class Task(BaseModel):
     id: Optional[str] = None
     title: str
     description: str
-    priority: str
     assignee: Optional[str] = None
     due_date: Optional[str] = None
 
 
 class ProcessedMeeting(BaseModel):
     id: str
-    summary: str
-    key_points: List[str]
     tasks: List[Task]
     created_at: str
     sent_to_trello: bool = False
@@ -54,7 +51,6 @@ class ProcessedMeeting(BaseModel):
 class TaskUpdate(BaseModel):
     title: str
     description: str
-    priority: str
     assignee: Optional[str] = None
     due_date: Optional[str] = None
 

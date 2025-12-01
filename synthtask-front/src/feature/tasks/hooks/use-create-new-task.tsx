@@ -21,7 +21,6 @@ export default function useCreateNewTask() {
         const task = await createTask(meetingId, {
           title: payload?.title ?? "Nova tarefa",
           description: payload?.description ?? "",
-          priority: payload?.priority ?? "medium",
           assignee: payload?.assignee ?? null,
           due_date: payload?.due_date ?? null,
         });

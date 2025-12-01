@@ -205,6 +205,44 @@ class JiraService(IntegrationService):
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
+    async def search_users(self, user_id: int, query: str) -> List[Dict[str, Any]]:
+        """Buscar usuários do Jira pelo parâmetro 'query' (email, nome ou username).
+
+        Endpoint oficial: GET /rest/api/3/user/search?query=...
+        """
+        creds = await self.get_user_credentials(user_id)
+        use_oauth = bool(creds.get("oauth") and creds.get("access_token") and creds.get("cloud_id"))
+        params = {"query": query}
+        if use_oauth:
+            creds = await self.refresh_oauth_tokens_if_expired(user_id, creds)
+            base = self.jira_api_base_url(creds, use_oauth=True)
+            url = f"{base}/user/search"
+            headers = {"Accept": "application/json", "Authorization": f"Bearer {creds['access_token']}"}
+            auth = None
+        else:
+            base = self.jira_api_base_url(creds, use_oauth=False)
+            url = f"{base}/user/search"
+            headers = {"Accept": "application/json"}
+            auth = self.get_basic_auth(creds)
+        try:
+            resp = requests.get(url, params=params, auth=auth, headers=headers)
+            if resp.status_code >= 400:
+                detail = self.parse_jira_error_response(resp)
+                raise HTTPException(status_code=resp.status_code, detail=detail)
+            users = resp.json() or []
+            normalized: List[Dict[str, Any]] = []
+            for u in users:
+                normalized.append({
+                    "accountId": u.get("accountId"),
+                    "displayName": u.get("displayName"),
+                    "emailAddress": u.get("emailAddress"),
+                })
+            return normalized
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
     async def get_assignable_users(self, user_id: int, project_key: str) -> List[Dict[str, Any]]:
         creds = await self.get_user_credentials(user_id)
         use_oauth = bool(creds.get("oauth") and creds.get("access_token") and creds.get("cloud_id"))

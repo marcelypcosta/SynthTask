@@ -23,6 +23,7 @@ import {
 import TaskDeleteButton from "@/feature/tasks/components/task-delete-button";
 import TaskSaveChangeButton from "@/feature/tasks/components/task-save-change-button";
 import CreateNewTaskButton from "@/feature/tasks/components/create-new-task-button";
+import SendTasksButton from "@/feature/tasks/components/send-tasks-button";
 
 import type { Task } from "@/lib/meetings-api";
 import type { Provider } from "@/types/providers";
@@ -34,7 +35,7 @@ import {
   listJiraRoleActors,
 } from "@/lib/integrations";
 
-import useMeetingReview from "@/feature/meeting/hooks/use-meeting-review";
+import useMeetingReview from "@/feature/tasks/hooks/use-tasks-review";
 import useDeleteTask from "@/feature/tasks/hooks/use-delete-task";
 import useSaveChangeTask from "@/feature/tasks/hooks/use-save-change-task";
 import useCreateNewTask from "@/feature/tasks/hooks/use-create-new-task";
@@ -47,7 +48,7 @@ type Props = {
   targetId?: string | null;
 };
 
-export default function MeetingReviewModal({
+export default function TasksReviewModal({
   open,
   onOpenChange,
   meetingId,
@@ -66,7 +67,12 @@ export default function MeetingReviewModal({
   const [jiraLoading, setJiraLoading] = useState(false);
   const [jiraRoleName, setJiraRoleName] = useState<string | null>(null);
 
-  const normalize = (s: string) => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  const normalize = (s: string) =>
+    (s || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
 
   useEffect(() => {
     if (meeting?.tasks) {
@@ -134,7 +140,10 @@ export default function MeetingReviewModal({
           roles.find((r) => r.name.toLowerCase() === "member") ||
           roles[0];
         if (preferred) {
-          const users = await listJiraRoleActors(String(targetId), preferred.id);
+          const users = await listJiraRoleActors(
+            String(targetId),
+            preferred.id
+          );
           setJiraRoleName(preferred.name);
           setJiraUsers(users);
           setTasks((prev) =>
@@ -216,6 +225,15 @@ export default function MeetingReviewModal({
                   loading={creating}
                 />
               </div>
+              <div className="flex justify-end">
+                {provider && targetId ? (
+                  <SendTasksButton
+                    tasks={tasks}
+                    provider={provider}
+                    targetId={String(targetId)}
+                  />
+                ) : null}
+              </div>
             </div>
           )}
         </div>
@@ -260,7 +278,9 @@ export default function MeetingReviewModal({
                     <FieldLabel>Responsável</FieldLabel>
                     <FieldContent>
                       {provider === "trello" ? (
-                        members.some((m) => m.id === (t.assignee || "").trim()) ? (
+                        members.some(
+                          (m) => m.id === (t.assignee || "").trim()
+                        ) ? (
                           <Select
                             value={t.assignee ?? ""}
                             onValueChange={(val) =>
@@ -290,12 +310,16 @@ export default function MeetingReviewModal({
                             className="bg-white"
                             value={t.assignee ?? ""}
                             onChange={(e) =>
-                              updateLocalTask(t.id, { assignee: e.target.value })
+                              updateLocalTask(t.id, {
+                                assignee: e.target.value,
+                              })
                             }
                           />
                         )
                       ) : provider === "jira" ? (
-                        jiraUsers.some((u) => u.accountId === (t.assignee || "").trim()) ? (
+                        jiraUsers.some(
+                          (u) => u.accountId === (t.assignee || "").trim()
+                        ) ? (
                           <Select
                             value={t.assignee ?? ""}
                             onValueChange={(val) =>
@@ -316,7 +340,10 @@ export default function MeetingReviewModal({
                             </SelectTrigger>
                             <SelectContent>
                               {jiraUsers.map((u) => (
-                                <SelectItem key={u.accountId} value={u.accountId}>
+                                <SelectItem
+                                  key={u.accountId}
+                                  value={u.accountId}
+                                >
                                   {u.displayName || u.accountId}
                                 </SelectItem>
                               ))}
@@ -327,7 +354,9 @@ export default function MeetingReviewModal({
                             className="bg-white"
                             value={t.assignee ?? ""}
                             onChange={(e) =>
-                              updateLocalTask(t.id, { assignee: e.target.value })
+                              updateLocalTask(t.id, {
+                                assignee: e.target.value,
+                              })
                             }
                           />
                         )

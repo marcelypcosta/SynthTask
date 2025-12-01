@@ -7,145 +7,124 @@ from typing import Dict, Any
 
 from ..core.config import settings
 
-
 class AIService:
     def __init__(self):
         if settings.GEMINI_API_KEY and settings.GEMINI_API_KEY != "SUA_API_KEY_AQUI":
             genai.configure(api_key=settings.GEMINI_API_KEY)
-            self.model = genai.GenerativeModel('gemini-2.5-flash')
+            self.model = genai.GenerativeModel("gemini-2.5-flash")
         else:
             self.model = None
 
     def process_meeting_text(self, text: str) -> Dict[str, Any]:
         """Process meeting text using Google Gemini AI"""
-        
+
         if not self.model:
             raise Exception("API Key do Google Gemini não configurada")
-        
+
         try:
             print("🤖 Processando com Google Gemini...")
-            
-            prompt = f"""
-Analise o seguinte texto de reunião e extraia as informações estruturadas.
 
-TEXTO DA REUNIÃO:
-```
-{text}
-```
----
-Eu quero que você extraia o resumo da reunião, os pontos-chave discutidos e uma lista detalhada de tarefas a serem realizadas.
+            header = """
+Você é um agente altamente especializado em extrair tarefas de transcrições de reunião.
 
-### INSTRUÇÕES RÍGIDAS
+A transcrição pode estar perfeita, razoável ou muito ruim — contendo gírias, ruídos, frases truncadas, erros de ASR, repetições, interrupções ou informalidades. Ainda assim, você deve interpretar o texto e extrair tarefas válidas.
 
-1.  **RESUMO:** Crie um resumo conciso da reunião com NO MÁXIMO 200 caracteres.
-2.  **OBJETIVO:** Extrair TODAS as sub-tarefas granulares. Não agrupe tarefas.
-3.  **GRANULARIDADE:** Se um item principal for dividido em tarefas de "Back-end", "Front-end", "QA", ... , você DEVE criar um item JSON separado para CADA UMA dessas tarefas.
-4.  **NÃO AGRUPAR:** A descrição de uma tarefa NÃO DEVE conter listas (com "1.", "2.", etc.). Se você vir uma lista, cada item dela é uma tarefa separada.
-5.  **ASSIGNEE:** Atribua o nome da pessoa (ex: "Ana", "Léo", "Tiago") se o texto a mencionar junto à tarefa.
-6.  **SEGUIR O EXEMPLO:** O formato de saída DEVE seguir o exemplo abaixo.
-
----
-### FORMATO DE SAÍDA OBRIGATÓRIO
-
-Você DEVE retornar um JSON com EXATAMENTE esta estrutura:
-
-```json
-{{
-  "summary": "Resumo conciso da reunião em até 200 caracteres",
-  "tasks": [
-    {{
-      "title": "Título da tarefa",
-      "description": "Descrição detalhada",
-      "priority": "Alta",
-      "assignee": "Nome da Pessoa",
-      "due_date": null,
-      "parent_pbi": "PBI-XXX"
-    }}
-  ]
-}}
-```
-
-### EXEMPLO COMPLETO
-
-Se o texto diz:
-"[10:03] Ana (Dev BE): Vamos implementar pagamento PIX. Pelo back-end, temos: 1. Criar o endpoint. 2. Criar o webhook."
-
-O JSON de saída DEVE ser:
-```json
-{{
-  "summary": "Reunião sobre implementação de pagamento PIX no sistema, definindo tarefas de backend",
-  "tasks": [
-    {{
-      "title": "BE: Criar o endpoint",
-      "description": "Criar o endpoint para gerar o QR Code PIX (integração com a API do gateway).",
-      "priority": "Alta",
-      "assignee": "Ana",
-      "due_date": null,
-      "parent_pbi": "PBI-450"
-    }},
-    {{
-      "title": "BE: Criar o webhook",
-      "description": "Criar o webhook para receber a confirmação de pagamento do gateway.",
-      "priority": "Alta",
-      "assignee": "Ana",
-      "due_date": null,
-      "parent_pbi": "PBI-450"
-    }}
-  ]
-}}
-```
+---------------------------------------
+TEXTO A SER ANALISADO:
 """
-            
+
+            regras = """
+---------------------------------------
+# REGRAS OBRIGATÓRIAS
+
+1. EXTRAIA SOMENTE TAREFAS.
+   Qualquer instrução futura, pedido de ação, responsabilidade ou atividade mencionada → é uma task.
+
+2. GRANULARIDADE MÁXIMA.
+   Se houver listas (“1.”, “2.”, “a)”, “-”), divida em múltiplas tasks.
+   Se uma frase contiver várias ações, também deve virar tasks separadas.
+
+3. NÃO AGRUPAR.
+   Cada task representa uma única ação.
+   A descrição não pode conter listas internas.
+
+4. ASSIGNEE.
+   Atribua a pessoa somente se for citada diretamente na tarefa.
+   Caso contrário → assignee = null.
+
+5. DUE DATE.
+   Se houver indicação de data (“amanhã”, “sexta”, “dia 14”) → interpretar para YYYY-MM-DD.
+   Se não houver → due_date = null.
+
+6. NÃO INVENTAR.
+   Não crie tarefas que não existem.
+   Não invente datas.
+   Não adicione campos extras.
+
+7. RETORNE APENAS O JSON.
+   Sem markdown, sem explicações, sem comentários.
+"""
+
+            formato = """
+---------------------------------------
+# FORMATO FINAL OBRIGATÓRIO:
+
+{{
+  "tasks": [
+    {{
+      "title": "Título claro e objetivo da tarefa",
+      "description": "Descrição detalhada da tarefa, sem listas internas.",
+      "assignee": "Nome ou null",
+      "due_date": "YYYY-MM-DD ou null"
+    }}
+  ]
+}}
+
+Se nenhuma tarefa existir, retorne:
+{{ "tasks": [] }}
+"""
+            prompt = f"{header}{text}\n\n{regras}\n\n{formato}"
+
             print(f"⏳ Enviando para Gemini (pode levar alguns segundos)...")
             response = self.model.generate_content(prompt)
             response_text = response.text.strip()
-            
-            # Clean up response text
-            if response_text.startswith("```json"):
+
+            if response_text.startswith("```"):
                 response_text = response_text.replace("```json", "").replace("```", "").strip()
-            elif response_text.startswith("```"):
-                response_text = response_text.replace("```", "").strip()
-            
+
             print(f"📝 Resposta da IA recebida, parseando JSON...")
             result = json.loads(response_text)
 
-            # Garantir que campos esperados existam mesmo se a IA omitir algo
-            if not isinstance(result.get("summary"), str):
-                result["summary"] = "Resumo não informado pela IA."
-            
-            # Limitar o resumo a 200 caracteres
-            if len(result["summary"]) > 200:
-                result["summary"] = result["summary"][:197] + "..."
-            
-            if not isinstance(result.get("key_points"), list):
-                result["key_points"] = []
+            # Garante estrutura mínima
             if not isinstance(result.get("tasks"), list):
                 result["tasks"] = []
 
-            # Normalizar tarefas para evitar quebra ao salvar/serializar
+            # Sem summary e key_points: o sistema persiste apenas tasks
+
+            # Normalização das tasks
             normalized_tasks = []
             for task in result["tasks"]:
                 task_data = {
                     "title": task.get("title") or "Tarefa sem título",
                     "description": task.get("description") or "",
-                    "priority": task.get("priority") or "Média",
                     "assignee": task.get("assignee"),
                     "due_date": task.get("due_date")
                 }
-                # Preservar ID enviado pela IA se existir
-                if task.get("id"):
-                    task_data["id"] = task["id"]
                 normalized_tasks.append(task_data)
+
             result["tasks"] = normalized_tasks
 
+            # Sem derivação adicional
+
             print(f"✅ {len(result['tasks'])} tasks encontradas com sucesso!")
-            
+
             return result
-            
+
         except json.JSONDecodeError as e:
             print(f"❌ Erro ao fazer parse do JSON: {e}")
             print(f"   Resposta bruta: {response_text[:200]}...")
             raise Exception(f"Erro ao processar resposta da IA: {str(e)}")
+
         except Exception as e:
             print(f"❌ Erro ao processar com Gemini: {e}")
             raise Exception(f"Erro ao processar com Gemini: {str(e)}")

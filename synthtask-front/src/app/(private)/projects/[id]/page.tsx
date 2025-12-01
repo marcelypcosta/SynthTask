@@ -22,7 +22,7 @@ import { Button } from "@/ui/button";
 
 import BackButton from "@/components/projects/back-button";
 import MeetingCard from "@/feature/meeting/components/meeting-card";
-import MeetingReviewModal from "@/feature/meeting/components/meeting-review-modal";
+import TasksReviewModal from "@/feature/tasks/components/tasks-review-modal";
 
 import useProjectDetail from "@/feature/projects/hooks/use-projects-detail";
 import useProjectMeetings from "@/feature/meeting/hooks/use-project-meetings";
@@ -158,7 +158,7 @@ export default function ProjectDetailPage({
             para envio.
           </CardFooter>
         </Card>
-        <MeetingReviewModal
+        <TasksReviewModal
           open={reviewOpen}
           onOpenChange={(o) => setReviewOpen(o)}
           meetingId={selectedMeetingId}

@@ -2,7 +2,6 @@ import { api } from "@/lib/http";
 
 export interface MeetingListItem {
   id: string;
-  summary: string;
   file_name?: string | null;
   created_at: string;
   tasks_count: number;
@@ -13,15 +12,12 @@ export interface Task {
   id: string;
   title: string;
   description: string;
-  priority: string;
   assignee?: string | null;
   due_date?: string | null;
 }
 
 export interface ProcessedMeeting {
   id: string;
-  summary: string;
-  key_points: string[];
   tasks: Task[];
   created_at: string;
   sent_to_trello: boolean;
@@ -59,7 +55,6 @@ export async function updateTask(
   payload: {
     title: string;
     description: string;
-    priority: string;
     assignee?: string | null;
     due_date?: string | null;
   }
@@ -73,7 +68,6 @@ export async function createTask(
   payload: {
     title: string;
     description: string;
-    priority: string;
     assignee?: string | null;
     due_date?: string | null;
   }

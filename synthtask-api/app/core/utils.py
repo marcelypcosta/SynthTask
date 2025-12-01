@@ -153,11 +153,9 @@ async def save_processed_meeting(
     meeting_doc = {
         "user_id": user_id,
         "original_text": original_text,
-        "summary": processed_data["summary"],
-        "key_points": processed_data["key_points"],
-        "tasks": processed_data["tasks"],
+        "tasks": processed_data.get("tasks", []),
         "created_at": datetime.utcnow(),
-        "sent_to_trello": False
+        "sent_to_trello": False,
     }
     
     if file_name:
@@ -217,11 +215,9 @@ def format_meeting_response(
     
     return ProcessedMeeting(
         id=meeting_id,
-        summary=meeting_data["summary"],
-        key_points=meeting_data["key_points"],
-        tasks=[Task(**task) for task in meeting_data["tasks"]],
+        tasks=[Task(**task) for task in meeting_data.get("tasks", [])],
         created_at=meeting_data["created_at"].isoformat(),
-        sent_to_trello=meeting_data.get("sent_to_trello", False)
+        sent_to_trello=meeting_data.get("sent_to_trello", False),
     )
 
 

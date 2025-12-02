@@ -1,7 +1,5 @@
-# Módulo: routers/integrations.py
-# Seção: Imports e modelos
 """
-Router de integrações que fornece endpoints genéricos para provedores plug-and-play.
+Endpoints de integrações com provedores (Trello, Jira) usando adaptadores.
 """
 from fastapi import APIRouter, Depends, HTTPException
 import logging
@@ -51,11 +49,9 @@ async def status(provider: str, current_user: dict = Depends(get_current_user)):
     except Exception:
         raise HTTPException(status_code=400, detail="Credenciais não configuradas")
 
-# Seção: Constantes
 ATLASSIAN_TOKEN_URL = "https://auth.atlassian.com/oauth/token"
 ATLASSIAN_RESOURCES_URL = "https://api.atlassian.com/oauth/token/accessible-resources"
 
-# Seção: Modelos
 class JiraOAuthExchangePayload(BaseModel):
     code: str
     redirect_uri: Optional[str] = None
@@ -373,162 +369,3 @@ async def create_task(provider: str, payload: Dict[str, Any], current_user: dict
     result = await service.create_task(current_user["id"], target_id, task)
     return {"result": result}
 
-class SendTaskPayload(BaseModel):
-    title: str
-    description: Optional[str] = None
-    due_date: Optional[str] = None
-    assignee: Optional[str] = None
-
-class SendTasksRequest(BaseModel):
-    tasks: List[SendTaskPayload]
-
-@router.post("/send-tasks")
-async def send_tasks_to_trello_and_jira(payload: SendTasksRequest, current_user: dict = Depends(get_current_user)):
-    """Enviar uma lista de tasks para Trello e Jira usando os endpoints oficiais e variáveis de ambiente.
-
-    Trello: POST https://api.trello.com/1/cards
-    Jira:   POST {JIRA_BASE_URL}/rest/api/3/issue
-    """
-    trello_key = (os.getenv("TRELLO_KEY") or "").strip()
-    trello_token = (os.getenv("TRELLO_TOKEN") or "").strip()
-    trello_list_id = (os.getenv("TRELLO_LIST_ID") or "").strip()
-
-    jira_email = (os.getenv("JIRA_EMAIL") or "").strip()
-    jira_api_token = (os.getenv("JIRA_API_TOKEN") or "").strip()
-    jira_base_url = (os.getenv("JIRA_BASE_URL") or "").strip().rstrip("/")
-    jira_project_key = (os.getenv("JIRA_PROJECT_KEY") or "").strip()
-    jira_issue_type_id = (os.getenv("JIRA_ISSUE_TYPE_ID") or "").strip()
-
-    if not (trello_key and trello_token and trello_list_id):
-        raise HTTPException(status_code=400, detail="Configuração Trello ausente: TRELLO_KEY/TRELLO_TOKEN/TRELLO_LIST_ID")
-    if not (jira_email and jira_api_token and jira_base_url and jira_project_key and jira_issue_type_id):
-        raise HTTPException(status_code=400, detail="Configuração Jira ausente: JIRA_EMAIL/JIRA_API_TOKEN/JIRA_BASE_URL/JIRA_PROJECT_KEY/JIRA_ISSUE_TYPE_ID")
-
-    results: List[Dict[str, Any]] = []
-
-    # Descobrir boardId a partir da lista para resolver membros
-    board_id: Optional[str] = None
-    try:
-        trello_list_resp = requests.get(
-            f"https://api.trello.com/1/lists/{trello_list_id}",
-            params={"key": trello_key, "token": trello_token, "fields": "idBoard"},
-            timeout=20,
-        )
-        if trello_list_resp.status_code < 400:
-            board_id = (trello_list_resp.json() or {}).get("idBoard")
-    except Exception:
-        board_id = None
-
-    trello_members: List[Dict[str, Any]] = []
-    if board_id:
-        try:
-            mresp = requests.get(
-                f"https://api.trello.com/1/boards/{board_id}/members",
-                params={"key": trello_key, "token": trello_token},
-                timeout=20,
-            )
-            if mresp.status_code < 400:
-                trello_members = mresp.json() or []
-        except Exception:
-            trello_members = []
-
-    for t in payload.tasks:
-        # Mapear assignee Trello -> idMembers
-        trello_member_id: Optional[str] = None
-        if t.assignee:
-            norm = str(t.assignee or "").strip().lower()
-            for m in trello_members:
-                uname = str(m.get("username") or "").lower()
-                fname = str(m.get("fullName") or "").lower()
-                email = str(m.get("email") or "").lower()
-                if norm and (norm == uname or norm == fname or (email and norm == email) or uname.startswith(norm) or fname.startswith(norm)):
-                    trello_member_id = m.get("id")
-                    break
-
-        trello_params: Dict[str, Any] = {
-            "key": trello_key,
-            "token": trello_token,
-            "idList": trello_list_id,
-            "name": t.title,
-            "desc": (t.description or ""),
-        }
-        if t.due_date:
-            trello_params["due"] = t.due_date
-        if trello_member_id:
-            trello_params["idMembers"] = trello_member_id
-
-        trello_card_url: Optional[str] = None
-        trello_err: Optional[str] = None
-        try:
-            cresp = requests.post("https://api.trello.com/1/cards", params=trello_params, timeout=30)
-            if cresp.status_code >= 400:
-                trello_err = cresp.text
-            else:
-                card = cresp.json() or {}
-                trello_card_url = card.get("url")
-        except Exception as e:
-            trello_err = str(e)
-
-        # Buscar accountId no Jira via /user/search
-        jira_account_id: Optional[str] = None
-        if t.assignee:
-            try:
-                uresp = requests.get(
-                    f"{jira_base_url}/rest/api/3/user/search",
-                    params={"query": t.assignee},
-                    auth=(jira_email, jira_api_token),
-                    headers={"Accept": "application/json"},
-                    timeout=30,
-                )
-                if uresp.status_code < 400:
-                    users = uresp.json() or []
-                    if isinstance(users, list) and users:
-                        jira_account_id = users[0].get("accountId")
-            except Exception:
-                jira_account_id = None
-
-        fields: Dict[str, Any] = {
-            "project": {"key": jira_project_key},
-            "summary": t.title,
-            "issuetype": {"id": jira_issue_type_id},
-        }
-        if t.description:
-            fields["description"] = t.description
-        if t.due_date:
-            # Jira espera YYYY-MM-DD; quando ISO, faz split
-            try:
-                fields["duedate"] = t.due_date[:10]
-            except Exception:
-                fields["duedate"] = t.due_date
-        if jira_account_id:
-            fields["assignee"] = {"accountId": jira_account_id}
-
-        jira_issue_url: Optional[str] = None
-        jira_err: Optional[str] = None
-        try:
-            iresp = requests.post(
-                f"{jira_base_url}/rest/api/3/issue",
-                json={"fields": fields},
-                auth=(jira_email, jira_api_token),
-                headers={"Accept": "application/json", "Content-Type": "application/json"},
-                timeout=30,
-            )
-            if iresp.status_code >= 400:
-                jira_err = iresp.text
-            else:
-                issue = iresp.json() or {}
-                key = issue.get("key")
-                if key:
-                    jira_issue_url = f"{jira_base_url}/browse/{key}"
-        except Exception as e:
-            jira_err = str(e)
-
-        results.append({
-            "title": t.title,
-            "trelloCardUrl": trello_card_url,
-            "jiraIssueUrl": jira_issue_url,
-            "assignee": t.assignee,
-            "errors": {"trello": trello_err, "jira": jira_err} if (trello_err or jira_err) else None,
-        })
-
-    return {"results": results}

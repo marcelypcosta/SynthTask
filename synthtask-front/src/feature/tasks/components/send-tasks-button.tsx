@@ -23,7 +23,7 @@ export default function SendTasksButton({
   onSent,
   disabled = false,
 }: Props) {
-  const { sending, error, send } = useSendingTasks();
+  const { sending, send } = useSendingTasks();
   const [localResults, setLocalResults] = useState<
     SendTasksResponse["results"]
   >([]);
@@ -50,12 +50,6 @@ export default function SendTasksButton({
           </span>
         )}
       </Button>
-      {localResults.length === tasks.length && (
-        <div className="text-xs text-green-700">Enviado</div>
-      )}
-      {error && (
-        <div className="text-xs text-red-700">Falha ao enviar tasks</div>
-      )}
     </div>
   );
 }

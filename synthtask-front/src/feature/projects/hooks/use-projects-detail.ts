@@ -47,6 +47,13 @@ export default function useProjectDetail(id: string) {
           try {
             const bid = await getTrelloBoardIdForList(p.target_id);
             if (bid) setSelectedBoardId(bid);
+            try {
+              const data: any = await listTargets("trello");
+              const boards = Array.isArray(data?.boards)
+                ? data.boards.map((b: any) => ({ id: String(b.id), name: String(b.name ?? b.id) }))
+                : [];
+              setTargets(boards);
+            } catch {}
           } catch {}
         }
       })
@@ -123,7 +130,7 @@ export default function useProjectDetail(id: string) {
     setSavingTarget(true);
     const pid = Number(id);
     const target = project.provider === "trello"
-      ? trelloLists.find((l) => l.id === selectedTargetId)
+      ? targets.find((b) => b.id === selectedBoardId)
       : targets.find((t) => t.id === selectedTargetId);
     try {
       const updated = await updateProjectTarget(pid, {

@@ -398,28 +398,24 @@ export default function TasksReviewModal({
                 </div>
               ))}
             <div className="flex items-center justify-between">
-              <div className="text-sm">
-                {sentFlag ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs bg-green-100 text-green-700">
-                    Já enviado
-                  </span>
+              <div className="flex justify-end">
+                {provider &&
+                (provider === "trello"
+                  ? Boolean(targetId)
+                  : Boolean(targetId)) ? (
+                  <SendTasksButton
+                    tasks={tasks}
+                    provider={provider}
+                    targetId={String(targetId)}
+                    disabled={sentFlag}
+                    onSent={async () => {
+                      if (!meetingId) return;
+                      await markMeetingSent(meetingId);
+                      setSentFlag(true);
+                    }}
+                  />
                 ) : null}
               </div>
-          <div className="flex justify-end">
-            {provider && (provider === "trello" ? Boolean(targetId) : Boolean(targetId)) ? (
-              <SendTasksButton
-                tasks={tasks}
-                provider={provider}
-                targetId={String(targetId)}
-                disabled={sentFlag}
-                onSent={async () => {
-                  if (!meetingId) return;
-                  await markMeetingSent(meetingId);
-                  setSentFlag(true);
-                }}
-              />
-            ) : null}
-          </div>
             </div>
           </div>
         )}

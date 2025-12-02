@@ -87,9 +87,10 @@ export default function ProjectDetailPage({
           </h1>
           <p className="text-sm text-gray-500">
             {project
-              ? `${project.target_name ?? project.target_id} - ${
-                  project.provider === "trello" ? "Trello" : "Jira"
-                }`
+              ? `${project.provider === "trello"
+                  ? (targets.find((b: { id: string; name: string }) => b.id === selectedBoardId)?.name || project.target_name || project.target_id)
+                  : (project.target_name ?? project.target_id)
+                } - ${project.provider === "trello" ? "Trello" : "Jira"}`
               : "Carregando destino..."}
           </p>
         </div>
@@ -200,9 +201,10 @@ export default function ProjectDetailPage({
                 <SquareKanban />
                 <p className="text-sm">
                   {project
-                    ? `${project.target_name ?? project.target_id} - ${
-                        project.provider === "trello" ? "Trello" : "Jira"
-                      }`
+                    ? `${project.provider === "trello"
+                        ? (targets.find((b: { id: string; name: string }) => b.id === selectedBoardId)?.name || project.target_name || project.target_id)
+                        : (project.target_name ?? project.target_id)
+                      } - ${project.provider === "trello" ? "Trello" : "Jira"}`
                     : "Carregando..."}
                 </p>
               </div>

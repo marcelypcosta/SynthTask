@@ -1,5 +1,3 @@
-# Classe: TrelloService
-# Seções: Helpers e create_task refatorado
 """
 Integração Trello implementando o adaptador IntegrationService.
 """

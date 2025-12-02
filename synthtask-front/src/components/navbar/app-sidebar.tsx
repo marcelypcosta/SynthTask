@@ -55,13 +55,6 @@ const data = {
       icon: Folders,
     },
   ],
-  navSecondary: [
-    {
-      title: "Configurações",
-      url: "/settings",
-      icon: Settings,
-    },
-  ],
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -86,10 +79,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           items={data.navMain.map((item) => ({ ...item, icon: <item.icon /> }))}
         />
         <NavSecondary
-          items={data.navSecondary.map((item) => ({
-            ...item,
-            icon: <item.icon />,
-          }))}
+        
           className="mt-auto"
         />
       </SidebarContent>

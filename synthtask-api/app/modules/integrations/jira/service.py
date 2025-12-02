@@ -1,5 +1,3 @@
-# Classe: JiraService
-# Seções: Helpers e métodos reorganizados
 """
 Integração Jira implementando o adaptador IntegrationService.
 """

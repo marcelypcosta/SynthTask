@@ -18,6 +18,22 @@ Este documento descreve como executar localmente o backend (`synthtask-api`, Fas
   - Backend com Docker Compose (API + bancos).
   - Frontend rodando localmente com `npm run dev` (hot reload).
 
+## Arquitetura e Padrões
+
+- Adaptadores de integrações: `synthtask-api/app/modules/integrations` implementa `IntegrationService` e serviços por provedor (`trello`, `jira`).
+- Separação de responsabilidades:
+  - `routers/*` expõem endpoints e delegam aos serviços/adaptadores.
+  - `core/*` concentra autenticação, banco de dados e utilitários.
+  - `services/ai_service.py` processa textos de reunião e retorna apenas tasks.
+- Endpoints principais:
+  - `POST /api/integrations/{provider}/connect`
+  - `GET  /api/integrations/{provider}/status`
+  - `GET  /api/integrations/{provider}/targets`
+  - `POST /api/integrations/{provider}/tasks`
+- Endpoints legados removidos:
+  - `/api/integrations/send-tasks`
+  - `/api/auth/trello-config` e `/api/auth/trello-lists`
+
 ---
 
 ## Backend — Execução (Docker Compose)
@@ -136,6 +152,7 @@ Em desenvolvimento local, basta definir `NEXT_PUBLIC_BACKEND_URL` para `http://l
 - `MONGODB_URL`: URL do MongoDB (ex.: `mongodb://localhost:27017`).
 - `JWT_SECRET`: chave secreta para JWT.
 - `GEMINI_API_KEY`: chave da API Google Gemini (opcional).
+- `ENCRYPTION_SECRET`: segredo para criptografia de credenciais das integrações.
 
 ### Frontend (Next.js)
 - `NEXT_PUBLIC_BACKEND_URL`: URL pública do backend (ex.: `http://localhost:8000`).
@@ -160,6 +177,18 @@ curl -X POST "http://localhost:8000/api/auth/register" \
 curl -X POST "http://localhost:8000/api/auth/login" \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","password":"test123"}'
+
+# Integrations — conectar e criar task
+curl -X POST "http://localhost:8000/api/integrations/trello/connect" \
+  -H "Authorization: Bearer SEU_TOKEN" -H "Content-Type: application/json" \
+  -d '{"api_key":"...","token":"..."}'
+
+curl -X GET "http://localhost:8000/api/integrations/trello/targets" \
+  -H "Authorization: Bearer SEU_TOKEN"
+
+curl -X POST "http://localhost:8000/api/integrations/trello/tasks" \
+  -H "Authorization: Bearer SEU_TOKEN" -H "Content-Type: application/json" \
+  -d '{"target_id":"ID_DA_LISTA","task":{"title":"Minha tarefa","description":"..."}}'
 ```
 
 ### Docker Compose

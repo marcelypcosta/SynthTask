@@ -159,7 +159,11 @@ export default function CreateNewProjectForm({
       name: name.trim(),
       provider,
       target_id: targetId,
-      target_name: provider === "trello" ? trelloLists.find((l) => l.id === targetId)?.name : target?.name,
+      // Para Trello, armazenar o nome do board selecionado
+      target_name:
+        provider === "trello"
+          ? targets.find((b) => b.id === selectedBoardId)?.name
+          : target?.name,
     };
     const project = await createProject(payload);
     if (onCreated) onCreated(project);

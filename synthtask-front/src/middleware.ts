@@ -7,6 +7,8 @@ import {
 const publicRoutes = [
   { path: "/sign-in", whenAuthenticated: "redirect" },
   { path: "/register", whenAuthenticated: "redirect" },
+  { path: "/jira/callback", whenAuthenticated: "pass" },
+  { path: "/trello/callback", whenAuthenticated: "pass" },
 ] as const;
 
 const REDIRECT_WHEN_AUTHENTICATED_ROUTE = "/";
@@ -15,7 +17,9 @@ const REDIRECT_WHEN_NOT_AUTHENTICATED_ROUTE = "/sign-in";
 export function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const publicRoute = publicRoutes.find((route) => route.path === path);
-  const authToken = request.cookies.get("next-auth.session-token");
+  const authToken =
+    request.cookies.get("next-auth.session-token") ||
+    request.cookies.get("__Secure-next-auth.session-token");
 
   // Caso 1: Usuário NÃO autenticado acessando uma rota pública (ex: /sign-in)
   // Ação: Permitir o acesso.

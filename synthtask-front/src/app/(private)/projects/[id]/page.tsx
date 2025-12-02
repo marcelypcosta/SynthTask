@@ -1,12 +1,11 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, SquareKanban, Video } from "lucide-react";
+import { Plus, SquareKanban, Video, Loader2 } from "lucide-react";
 
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardFooter,
@@ -16,33 +15,19 @@ import {
 import {
   Breadcrumb,
   BreadcrumbItem,
-  BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@/ui/breadcrumb";
 import { Button } from "@/ui/button";
 
 import BackButton from "@/components/projects/back-button";
-import CardMeetings from "@/components/projects/card-meetings";
+import MeetingCard from "@/feature/meeting/components/meeting-card";
+import TasksReviewModal from "@/feature/tasks/components/tasks-review-modal";
 
-import type { Meeting } from "@/types/meetings";
-
-const meetings: Meeting[] = [
-  {
-    id: 1,
-    name: "Reunião 1",
-    description: "Reunião de planejamento do projeto",
-    data_time: "2024-01-01T10:00:00",
-    tasks: [],
-  },
-  {
-    id: 2,
-    name: "Reunião 2",
-    description: "Reunião de revisão do projeto",
-    data_time: "2024-01-02T14:00:00",
-    tasks: [],
-  },
-];
+import useProjectDetail from "@/feature/projects/hooks/use-projects-detail";
+import useProjectMeetings from "@/feature/meeting/hooks/use-project-meetings";
+import { useConfirmDeleteProjectModal } from "@/feature/projects/components/confirm-delete-project-modal";
+import { toast } from "sonner";
 
 export default function ProjectDetailPage({
   params,
@@ -50,57 +35,104 @@ export default function ProjectDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const router = useRouter();
-
   const { id } = use(params);
+  const {
+    project,
+    providerDisconnected,
+    changing,
+    setChanging,
+    targets,
+    trelloLists,
+    selectedTargetId,
+    setSelectedTargetId,
+    selectedBoardId,
+    handleSelectBoard,
+    handleStartChange,
+    handleSaveChange,
+    handleDeleteProject,
+    startingTargets,
+    savingTarget,
+  } = useProjectDetail(String(id));
+
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(
+    null
+  );
+  const { meetings, loading, error, refresh } = useProjectMeetings();
+  const { confirm, Modal: ConfirmDeleteModal } = useConfirmDeleteProjectModal();
 
   const handleRedirect = () => {
     router.push(`/uploads`);
   };
 
   return (
-    <div className="pb-4">
-      <div className="my-4">
+    <div className="w-full pb-4 md:pb-6">
+      <BackButton />
+      <div className="my-3 md:my-4">
         <Breadcrumb>
           <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/projects">Meus Projetos</BreadcrumbLink>
-            </BreadcrumbItem>
+            <BreadcrumbItem>Meus Projetos</BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
-              <BreadcrumbLink href="/components">Projeto {id}</BreadcrumbLink>
+              {project ? project.name : `Projeto ${id}`}
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
       </div>
 
-      <header className="w-full flex justify-between items-center mb-6">
+      <header className="w-full flex justify-between items-center mb-4 md:mb-6">
         <div className="w-full border border-neutral-200 p-4 rounded-md">
-          <h1 className="text-2xl font-bold text-gray-900">
-            Nome do Projeto {id}
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            {project ? project.name : `Projeto ${id}`}
           </h1>
           <p className="text-sm text-gray-500">
-            Nome do Boad vinculado - Ferramenta de Gerenciamento
+            {project
+              ? `${project.target_name ?? project.target_id} - ${
+                  project.provider === "trello" ? "Trello" : "Jira"
+                }`
+              : "Carregando destino..."}
           </p>
         </div>
       </header>
 
-      <div className="w-full grid grid-cols-1 lg:grid-cols-3 justify-center items-start gap-6 mb-6">
+      <div className="w-full grid grid-cols-1 lg:grid-cols-3 justify-center items-start gap-4 md:gap-6 mb-4 md:mb-6">
         {/* Seção de Reuniões recentes */}
         <Card className="w-full bg-white rounded-sm lg:col-span-2">
           <CardHeader>
             <CardTitle>Reuniões recentes</CardTitle>
-
             <CardDescription>
               Selecione a reunião e aprove suas tasks e envie para sua
               ferramente de gerenciamento.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col space-y-4">
-            {meetings.map((meeting) => (
-              <CardMeetings key={meeting.id} meeting={meeting} />
-            ))}
-            {meetings.length === 0 && (
-              <div className="flex flex-col items-center justify-center gap-3 rounded-md border border-dashed border-neutral-200 bg-neutral-100 p-8 text-center">
+          <CardContent className="flex flex-col space-y-2 sm:space-y-3">
+            {error && <p className="text-destructive">{error}</p>}
+            {loading && (
+              <div className="space-y-2">
+                <div className="h-10 bg-neutral-200 animate-pulse rounded-sm" />
+                <div className="h-10 bg-neutral-200 animate-pulse rounded-sm" />
+              </div>
+            )}
+            {!loading && meetings.length > 0 && (
+              <div className="flex flex-col gap-2 sm:gap-3">
+                {meetings.map((m) => (
+                  <MeetingCard
+                    key={m.id}
+                    id={m.id}
+                    fileName={m.file_name}
+                    createdAt={m.created_at}
+                    sent={Boolean(m.sent)}
+                    onReview={(id) => {
+                      if (m.sent) return;
+                      setSelectedMeetingId(id);
+                      setReviewOpen(true);
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+            {!loading && meetings.length === 0 && (
+              <div className="flex flex-col items-center justify-center gap-3 rounded-md border border-dashed border-neutral-200 bg-neutral-100 p-4 md:p-6 text-center">
                 <Video
                   className="h-6 w-6 text-neutral-400"
                   aria-hidden="true"
@@ -130,6 +162,20 @@ export default function ProjectDetailPage({
             para envio.
           </CardFooter>
         </Card>
+        <TasksReviewModal
+          open={reviewOpen}
+          onOpenChange={(o) => setReviewOpen(o)}
+          meetingId={selectedMeetingId}
+          provider={project?.provider as "trello" | "jira" | undefined}
+          targetId={
+            project?.provider === "trello"
+              ? ((selectedTargetId || project?.target_id) || undefined)
+              : ((changing ? selectedTargetId : project?.target_id) || undefined)
+          }
+          trelloBoardId={
+            project?.provider === "trello" ? (selectedBoardId || undefined) : undefined
+          }
+        />
 
         {/* Seção de Configuração de Board */}
         <Card className="w-full bg-white rounded-sm lg:col-span-1">
@@ -140,20 +186,147 @@ export default function ProjectDetailPage({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-2 bg-neutral-100 p-4 rounded-md">
-              <SquareKanban />
-              <p className="text-sm">
-                Nome do Boad vinculado - Ferramenta de Gerenciamento
-              </p>
-            </div>
+            {providerDisconnected ? (
+              <div className="flex flex-col gap-3 rounded-md border border-dashed border-neutral-200 bg-neutral-100 p-4">
+                <p className="text-sm text-neutral-700">
+                  A ferramenta{" "}
+                  {project?.provider === "trello" ? "Trello" : "Jira"} está
+                  desconectada. Conecte-se ou altere o destino para outra
+                  ferramenta.
+                </p>
+              </div>
+            ) : !changing ? (
+              <div className="flex items-center gap-2 bg-neutral-100 p-3 sm:p-4 rounded-md">
+                <SquareKanban />
+                <p className="text-sm">
+                  {project
+                    ? `${project.target_name ?? project.target_id} - ${
+                        project.provider === "trello" ? "Trello" : "Jira"
+                      }`
+                    : "Carregando..."}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {project?.provider === "trello" ? (
+                  <>
+                    <label className="text-sm text-neutral-700">
+                      Selecione o board
+                    </label>
+                    <select
+                      className="w-full border rounded-md p-2"
+                      value={selectedBoardId}
+                      onChange={(e) => handleSelectBoard(e.target.value)}
+                    >
+                      {targets.map((t: { id: string; name: string }) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                    <label className="text-sm text-neutral-700">
+                      Selecione a lista
+                    </label>
+                    <select
+                      className="w-full border rounded-md p-2"
+                      value={selectedTargetId}
+                      onChange={(e) => setSelectedTargetId(e.target.value)}
+                    >
+                      {trelloLists.map((l: { id: string; name: string }) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                ) : (
+                  <>
+                    <label className="text-sm text-neutral-700">
+                      Selecione o projeto
+                    </label>
+                    <select
+                      className="w-full border rounded-md p-2"
+                      value={selectedTargetId}
+                      onChange={(e) => setSelectedTargetId(e.target.value)}
+                    >
+                      {targets.map((t: { id: string; name: string }) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
+              </div>
+            )}
           </CardContent>
           <CardFooter>
-            <Button className="w-full gap-2">
-              <SquareKanban className="h-4 w-4" aria-hidden="true" />
-              Alterar Board
-            </Button>
+            {providerDisconnected ? (
+              <>
+                <Button
+                  className="w-full"
+                  onClick={() => router.push("/connections")}
+                >
+                  Conectar ferramenta
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="w-full"
+                  onClick={async () => {
+                    toast.warning("Confirme a exclusão do projeto.");
+                    const ok = await confirm();
+                    if (!ok) return;
+                    try {
+                      await handleDeleteProject();
+                      toast.success("Projeto excluído com sucesso.");
+                      router.push("/projects");
+                    } catch (e: any) {
+                      toast.error(e?.message || "Falha ao excluir projeto.");
+                    }
+                  }}
+                >
+                  Excluir projeto
+                </Button>
+              </>
+            ) : !changing ? (
+              <Button
+                className="w-full gap-2"
+                onClick={handleStartChange}
+                disabled={startingTargets}
+              >
+                {startingTargets ? (
+                  <Loader2
+                    className="h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <SquareKanban className="h-4 w-4" aria-hidden="true" />
+                )}
+                Alterar Destino
+              </Button>
+            ) : (
+              <>
+                <Button
+                  className="gap-2"
+                  onClick={handleSaveChange}
+                  disabled={savingTarget}
+                >
+                  {savingTarget ? (
+                    <Loader2
+                      className="h-4 w-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : null}
+                  Salvar
+                </Button>
+                <Button variant="outline" onClick={() => setChanging(false)}>
+                  Cancelar
+                </Button>
+              </>
+            )}
           </CardFooter>
         </Card>
+        {ConfirmDeleteModal}
       </div>
     </div>
   );

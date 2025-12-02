@@ -1,0 +1,1 @@
+"""Integrations module package for plug-and-play adapters."""

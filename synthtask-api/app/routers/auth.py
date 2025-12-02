@@ -1,18 +1,24 @@
 """
-Authentication routes for the Sintask API
+Rotas de autenticação para a Sintask API
 """
 from fastapi import APIRouter, HTTPException, Depends
 
-from ..models import UserRegister, UserLogin, User, TrelloConfig, AuthResponse, MessageResponse
+from ..models import UserRegister, UserLogin, User, AuthResponse, MessageResponse
+from pydantic import BaseModel
 from ..core.auth import hash_password, verify_password, create_access_token, get_current_user
 from ..core.database import database, users_table
 from ..core.utils import (
     get_user_by_email, get_user_by_id, format_user_response,
-    update_user_field, validate_trello_config
+    update_user_field
 )
-from ..services.trello_service import trello_service
+from app.modules.integrations.registry import get_integration
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
+
+class TrelloConfigPayload(BaseModel):
+    trello_api_key: str
+    trello_token: str
+    trello_list_id: str
 
 
 @router.post("/register", response_model=AuthResponse)
@@ -65,36 +71,45 @@ async def login(credentials: UserLogin):
 
 @router.get("/me", response_model=User)
 async def get_me(current_user: dict = Depends(get_current_user)):
-    """Get current authenticated user data"""
+    """Obter os dados do usuário autenticado atual"""
     return format_user_response(current_user)
 
 
 @router.put("/trello-config", response_model=MessageResponse)
 async def update_trello_config(
-    config: TrelloConfig,
+    config: TrelloConfigPayload,
     current_user: dict = Depends(get_current_user)
 ):
     """Update Trello configuration for current user"""
-    
-    await update_user_field(
-        current_user["id"],
-        trello_api_key=config.trello_api_key,
-        trello_token=config.trello_token,
-        trello_list_id=config.trello_list_id
-    )
-    
+    # Salva nas credenciais do módulo de integrações (apenas storage novo)
+    service = get_integration("trello")
+    await service.save_credentials(current_user["id"], {
+        "api_key": config.trello_api_key,
+        "token": config.trello_token,
+        "list_id": config.trello_list_id,
+    })
+
     return MessageResponse(message="Configurações do Trello atualizadas")
 
 
 @router.get('/trello-lists')
 async def get_trello_lists(current_user: dict = Depends(get_current_user)):
-    """Return boards and lists for the current user's stored Trello credentials."""
-    if not validate_trello_config(current_user):
-        raise HTTPException(status_code=400, detail="Configure suas credenciais do Trello primeiro")
-
+    """Retorna boards e listas usando o novo adapter Trello com credenciais armazenadas."""
+    service = get_integration("trello")
     try:
-        lists = trello_service.get_boards_and_lists(current_user["trello_api_key"], current_user["trello_token"])
-        return lists
+        # Garante que há credenciais
+        await service.get_user_credentials(current_user["id"])  # levanta erro se ausentes
+
+        boards = await service.get_boards(current_user["id"])  # type: ignore
+        result = {"boards": []}
+        for b in boards:
+            lists = await service.get_lists(current_user["id"], b["id"])  # type: ignore
+            result["boards"].append({
+                "id": b["id"],
+                "name": b.get("name"),
+                "lists": [{"id": l["id"], "name": l.get("name")} for l in lists]
+            })
+        return result
     except HTTPException:
         raise
     except Exception as e:

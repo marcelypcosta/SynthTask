@@ -21,15 +21,7 @@ class User(BaseModel):
     id: int
     email: str
     name: str
-    trello_api_key: Optional[str] = None
-    trello_token: Optional[str] = None
-    trello_list_id: Optional[str] = None
 
-
-class TrelloConfig(BaseModel):
-    trello_api_key: str
-    trello_token: str
-    trello_list_id: str
 
 
 class MeetingText(BaseModel):
@@ -40,31 +32,23 @@ class Task(BaseModel):
     id: Optional[str] = None
     title: str
     description: str
-    priority: str
     assignee: Optional[str] = None
     due_date: Optional[str] = None
 
 
 class ProcessedMeeting(BaseModel):
     id: str
-    summary: str
-    key_points: List[str]
     tasks: List[Task]
     created_at: str
-    sent_to_trello: bool = False
+    sent: bool = False
 
 
 class TaskUpdate(BaseModel):
     title: str
     description: str
-    priority: str
     assignee: Optional[str] = None
     due_date: Optional[str] = None
 
-
-class SendToTrelloRequest(BaseModel):
-    meeting_id: str
-    task_ids: List[str]
 
 
 class AuthResponse(BaseModel):
@@ -76,13 +60,31 @@ class MessageResponse(BaseModel):
     message: str
 
 
-class TrelloCardResponse(BaseModel):
-    task_id: str
-    card_id: str
-    card_url: str
-    card_name: str
 
+class ProjectCreate(BaseModel):
+    name: str
+    provider: str
+    target_id: str
+    target_name: Optional[str] = None
 
-class SendToTrelloResponse(BaseModel):
-    message: str
-    cards: List[TrelloCardResponse]
+class Project(BaseModel):
+    id: int
+    name: str
+    provider: str
+    target_id: str
+    target_name: Optional[str] = None
+    created_at: str
+
+class ProjectCreate(BaseModel):
+    name: str
+    provider: str
+    target_id: str
+    target_name: Optional[str] = None
+
+class Project(BaseModel):
+    id: int
+    name: str
+    provider: str
+    target_id: str
+    target_name: Optional[str] = None
+    created_at: str

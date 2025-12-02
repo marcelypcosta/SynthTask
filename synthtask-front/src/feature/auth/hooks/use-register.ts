@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { RegisterData } from "../types/register";
 import { api, createCancel } from "@/lib/http";
+import { toast } from "sonner";
 
 export default function useRegister() {
   const router = useRouter();
@@ -31,10 +32,12 @@ export default function useRegister() {
     try {
       const { signal } = createCancel();
       await api.post("/api/auth/register", formData, { signal });
+      toast.success("Cadastro realizado com sucesso. Faça login.");
       router.push("/sign-in");
     } catch (err: any) {
       const message = err?.message || "Falha ao registrar";
       setError(message);
+      toast.error(message);
     }
   };
 

@@ -3,6 +3,7 @@
 import { Label } from "@/ui/label";
 import { Input } from "@/ui/input";
 import { Button } from "@/ui/button";
+import { Loader2 } from "lucide-react";
 
 import useRegister from "../hooks/use-register";
 
@@ -60,7 +61,8 @@ export default function RegisterForm() {
         />
       </div>
 
-      <Button type="submit" className="w-full" disabled={isLoading}>
+      <Button type="submit" className="w-full gap-2" disabled={isLoading}>
+        {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
         {isLoading ? "Registrando..." : "Registrar"}
       </Button>
     </form>

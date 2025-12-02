@@ -1,5 +1,5 @@
 """
-Database configuration and connections for MongoDB and PostgreSQL
+Configuração e conexões de banco de dados para MongoDB e PostgreSQL.
 """
 import sqlalchemy
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -25,9 +25,30 @@ users_table = sqlalchemy.Table(
     sqlalchemy.Column("email", sqlalchemy.String, unique=True, nullable=False),
     sqlalchemy.Column("password_hash", sqlalchemy.String, nullable=False),
     sqlalchemy.Column("name", sqlalchemy.String, nullable=False),
-    sqlalchemy.Column("trello_api_key", sqlalchemy.String, nullable=True),
-    sqlalchemy.Column("trello_token", sqlalchemy.String, nullable=True),
-    sqlalchemy.Column("trello_list_id", sqlalchemy.String, nullable=True),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=datetime.utcnow),
+)
+
+# Integration credentials table definition (secure storage per provider/user)
+integration_credentials = sqlalchemy.Table(
+    "integration_credentials",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
+    sqlalchemy.Column("user_id", sqlalchemy.Integer, nullable=False),
+    sqlalchemy.Column("provider", sqlalchemy.String, nullable=False),
+    sqlalchemy.Column("data_encrypted", sqlalchemy.Text, nullable=False),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=datetime.utcnow),
+    sqlalchemy.UniqueConstraint("user_id", "provider", name="uq_integration_user_provider"),
+)
+
+projects_table = sqlalchemy.Table(
+    "projects",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
+    sqlalchemy.Column("user_id", sqlalchemy.Integer, nullable=False),
+    sqlalchemy.Column("name", sqlalchemy.String, nullable=False),
+    sqlalchemy.Column("provider", sqlalchemy.String, nullable=False),
+    sqlalchemy.Column("target_id", sqlalchemy.String, nullable=False),
+    sqlalchemy.Column("target_name", sqlalchemy.String, nullable=True),
     sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=datetime.utcnow),
 )
 
@@ -35,30 +56,65 @@ users_table = sqlalchemy.Table(
 engine = sqlalchemy.create_engine(settings.POSTGRES_URL)
 
 
+# --- Limpeza legada: remove colunas antigas do Trello da tabela users se existirem ---
+def drop_legacy_trello_columns():
+    try:
+        with engine.connect() as conn:
+            conn.execute(sqlalchemy.text("""
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='users' AND column_name='trello_api_key'
+                    ) THEN
+                        EXECUTE 'ALTER TABLE users DROP COLUMN trello_api_key';
+                    END IF;
+
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='users' AND column_name='trello_token'
+                    ) THEN
+                        EXECUTE 'ALTER TABLE users DROP COLUMN trello_token';
+                    END IF;
+
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='users' AND column_name='trello_list_id'
+                    ) THEN
+                        EXECUTE 'ALTER TABLE users DROP COLUMN trello_list_id';
+                    END IF;
+                END
+                $$;
+            """))
+    except Exception as e:
+        # Evitar falha crítica na inicialização; apenas registrar
+        print(f"Aviso: não foi possível remover colunas legadas do Trello: {e}")
+
+
 async def connect_databases():
-    """Connect to all databases"""
+    """Conectar todos os bancos de dados"""
     try:
         # Connect to PostgreSQL
         await database.connect()
         print("🔌 Conectado ao PostgreSQL")
         
-        # Create tables if they don't exist
+        # Criar tabelas se não existirem
         metadata.create_all(engine)
         print("📋 Tabelas do PostgreSQL verificadas/criadas")
         
-        # Test MongoDB connection
+        # Testar conexão com o MongoDB
         await mongodb.command("ping")
         print("🔌 Conectado ao MongoDB")
         
         print("✅ Todos os bancos de dados conectados com sucesso")
         
     except Exception as e:
-        print(f"❌ Erro ao conectar bancos de dados: {e}")
+        print(f"❌ Erro ao conectar aos bancos de dados: {e}")
         raise
 
 
 async def disconnect_databases():
-    """Disconnect from all databases"""
+    """Desconectar de todos os bancos de dados"""
     await database.disconnect()
     mongodb_client.close()
     print("📴 Desconectado dos bancos de dados")

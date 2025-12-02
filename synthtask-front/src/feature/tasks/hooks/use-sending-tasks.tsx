@@ -23,12 +23,22 @@ export default function useSendingTasks() {
     setError(null);
     setResults([]);
     try {
-      const items: SendingTask[] = tasks.map((t) => ({
-        title: t.title,
-        description: t.description ?? null,
-        due_date: t.due_date ?? null,
-        assignee: t.assignee ?? null,
-      }));
+      const items: SendingTask[] = tasks.map((t) => {
+        const rawAssignee = (t.assignee ?? "").trim();
+        const trelloIdPattern = /^[0-9a-fA-F]{24}$/;
+        const normalizedAssignee =
+          provider === "trello"
+            ? trelloIdPattern.test(rawAssignee)
+              ? rawAssignee
+              : null
+            : rawAssignee || null;
+        return {
+          title: t.title,
+          description: t.description ?? null,
+          due_date: t.due_date ?? null,
+          assignee: normalizedAssignee,
+        };
+      });
 
       const responses = await Promise.all(
         items.map(async (it) => {

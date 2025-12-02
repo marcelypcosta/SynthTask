@@ -6,17 +6,16 @@ from bson import ObjectId
 from typing import List
 
 from ..models import (
-    MeetingText, ProcessedMeeting, Task, TaskUpdate, SendToTrelloRequest,
-    MessageResponse, SendToTrelloResponse, TrelloCardResponse
+    MeetingText, ProcessedMeeting, Task, TaskUpdate,
+    MessageResponse
 )
 from ..core.auth import get_current_user
 from ..core.utils import (
     get_user_meeting, get_user_meetings, save_processed_meeting,
-    format_meeting_response, update_meeting_tasks, mark_meeting_sent_to_trello,
+    format_meeting_response, update_meeting_tasks, mark_meeting_sent,
     validate_object_id, delete_user_meeting
 )
-from ..services.ai_service import ai_service
-from app.modules.integrations.registry import get_integration
+from ..services.ai_service import ai_service 
 
 router = APIRouter(prefix="/api/meetings", tags=["Meetings"])
 
@@ -166,7 +165,7 @@ async def get_meetings(current_user: dict = Depends(get_current_user)):
             "file_name": meeting.get("file_name"),
             "created_at": meeting["created_at"].isoformat(),
             "tasks_count": len(meeting.get("tasks", [])),
-            "sent_to_trello": meeting.get("sent_to_trello", False),
+            "sent": meeting.get("sent", meeting.get("sent_to_trello", False)),
         }
         for meeting in meetings
     ]
@@ -292,57 +291,15 @@ async def delete_meeting(meeting_id: str, current_user: dict = Depends(get_curre
     return MessageResponse(message="Transcrição apagada com sucesso")
 
 
-@router.post("/send-to-trello", response_model=SendToTrelloResponse)
-async def send_to_trello(
-    request: SendToTrelloRequest,
-    current_user: dict = Depends(get_current_user)
-):
-    """Envia tasks selecionadas para o Trello usando o novo adapter."""
-    
-    if not validate_object_id(request.meeting_id):
+
+
+@router.post("/{meeting_id}/sent", response_model=MessageResponse)
+async def mark_sent(meeting_id: str, current_user: dict = Depends(get_current_user)):
+    """Marcar reunião como enviada (status genérico de envio)."""
+    if not validate_object_id(meeting_id):
         raise HTTPException(status_code=400, detail="ID de reunião inválido")
-    
-    # Get meeting
-    meeting = await get_user_meeting(request.meeting_id, current_user["id"])
-    
+    meeting = await get_user_meeting(meeting_id, current_user["id"])
     if not meeting:
         raise HTTPException(status_code=404, detail="Reunião não encontrada")
-    
-    service = get_integration("trello")
-    # Credenciais devem estar salvas via /api/integrations/trello/connect e conter list_id
-    creds = await service.get_user_credentials(current_user["id"])  # type: ignore
-    list_id = creds.get("list_id")
-    if not list_id:
-        raise HTTPException(status_code=400, detail="Defina 'list_id' nas credenciais do Trello.")
-    
-    trello_cards = []
-    for task_data in meeting["tasks"]:
-        if task_data.get("id") in request.task_ids:
-            task = Task(**task_data)
-            try:
-                result = await service.create_task(
-                    user_id=current_user["id"],  # type: ignore
-                    target_id=list_id,
-                    task={
-                        "title": task.title,
-                        "description": task.description,
-                        "assignee": task.assignee,
-                        "due_date": task.due_date,
-                    },
-                )
-                trello_cards.append(TrelloCardResponse(
-                    task_id=task_data.get("id"),
-                    card_id=result.get("id"),
-                    card_url=result.get("url"),
-                    card_name=result.get("name"),
-                ))
-            except Exception as e:
-                print(f"Erro ao criar card: {e}")
-    
-    # Update status
-    await mark_meeting_sent_to_trello(request.meeting_id)
-    
-    return SendToTrelloResponse(
-        message=f"{len(trello_cards)} cards criados no Trello",
-        cards=trello_cards
-    )
+    await mark_meeting_sent(meeting_id)
+    return MessageResponse(message="Reunião marcada como enviada")

@@ -155,7 +155,7 @@ async def save_processed_meeting(
         "original_text": original_text,
         "tasks": processed_data.get("tasks", []),
         "created_at": datetime.utcnow(),
-        "sent_to_trello": False,
+        "sent": False,
     }
     
     if file_name:
@@ -179,16 +179,16 @@ async def update_meeting_tasks(meeting_id: str, tasks: list[Dict]) -> None:
     )
 
 
-async def mark_meeting_sent_to_trello(meeting_id: str) -> None:
+async def mark_meeting_sent(meeting_id: str) -> None:
     """
-    Marcar uma reunião como enviada ao Trello (atualiza a flag sent_to_trello).
+    Marcar uma reunião como enviada (status genérico de envio).
     
     Args:
         meeting_id: ObjectId da reunião no MongoDB como string
     """
     await meetings_collection.update_one(
         {"_id": ObjectId(meeting_id)},
-        {"$set": {"sent_to_trello": True}}
+        {"$set": {"sent": True}}
     )
 
 
@@ -217,7 +217,7 @@ def format_meeting_response(
         id=meeting_id,
         tasks=[Task(**task) for task in meeting_data.get("tasks", [])],
         created_at=meeting_data["created_at"].isoformat(),
-        sent_to_trello=meeting_data.get("sent_to_trello", False),
+        sent=meeting_data.get("sent", meeting_data.get("sent_to_trello", False)),
     )
 
 

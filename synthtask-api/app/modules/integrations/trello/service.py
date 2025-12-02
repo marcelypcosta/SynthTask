@@ -90,6 +90,24 @@ class TrelloService(IntegrationService):
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
+    async def get_board_id_for_list(self, user_id: int, list_id: str) -> str:
+        creds = await self.get_user_credentials(user_id)
+        url = f"{self.BASE_URL}/lists/{list_id}"
+        params = {"key": creds["api_key"], "token": creds["token"], "fields": "idBoard"}
+        try:
+            resp = requests.get(url, params=params, timeout=20)
+            if resp.status_code >= 400:
+                raise HTTPException(status_code=resp.status_code, detail=f"Erro ao obter board da lista: {resp.text}")
+            data = resp.json() or {}
+            bid = data.get("idBoard")
+            if not bid:
+                raise HTTPException(status_code=404, detail="Board não encontrado para a lista informada")
+            return str(bid)
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
     def build_card_description(self, task_data: Dict[str, Any]) -> str:
         description = (task_data.get("description") or "") + "\n\n"
         assignee = task_data.get("assignee")
@@ -118,9 +136,23 @@ class TrelloService(IntegrationService):
             params["due"] = due_date
         assignee = task_data.get("assignee")
         if assignee:
-            params["idMembers"] = assignee
+            try:
+                import re
+                s = str(assignee).strip()
+                # Trello IDs geralmente têm 24 caracteres hexadecimais
+                if re.fullmatch(r"[0-9a-fA-F]{24}", s):
+                    params["idMembers"] = s
+            except Exception:
+                pass
 
         resp = requests.post(url, params=params)
         if resp.status_code != 200:
-            raise HTTPException(status_code=400, detail=f"Erro ao criar card: {resp.text}")
+            msg = resp.text
+            try:
+                data = resp.json() or {}
+                if isinstance(data, dict) and data.get("message") == "Invalid objectId":
+                    msg = "idList ou idMembers inválido"
+            except Exception:
+                pass
+            raise HTTPException(status_code=400, detail=f"Erro ao criar card: {msg}")
         return resp.json()

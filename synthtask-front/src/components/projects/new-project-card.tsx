@@ -33,7 +33,7 @@ export default function NewProjectCard({
   };
 
   return (
-    <Card>
+    <Card className="bg-white rounded-md px-3 sm:px-0">
       <CardHeader>
         <CardTitle>{projectName}</CardTitle>
         <CardDescription>
@@ -41,12 +41,18 @@ export default function NewProjectCard({
         </CardDescription>
       </CardHeader>
       <CardFooter className="flex gap-2">
-        <Button className="flex-1" onClick={() => handleRedirect(id)}>
+        <Button className="flex-1" size="lg" onClick={() => handleRedirect(id)}>
           Ver projeto
         </Button>
         {onDelete && (
-          <Button variant="destructive" className="flex-1" onClick={() => onDelete(id)}>
-            <Trash /> Excluir
+          <Button
+            variant="outline"
+            size="icon"
+            className="bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
+            aria-label="Excluir projeto"
+            onClick={() => onDelete(id)}
+          >
+            <Trash />
           </Button>
         )}
       </CardFooter>

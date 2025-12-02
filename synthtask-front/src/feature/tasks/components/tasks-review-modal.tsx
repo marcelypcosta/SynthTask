@@ -26,6 +26,7 @@ import CreateNewTaskButton from "@/feature/tasks/components/create-new-task-butt
 import SendTasksButton from "@/feature/tasks/components/send-tasks-button";
 
 import type { Task } from "@/lib/meetings-api";
+import { markMeetingSent } from "@/lib/meetings-api";
 import type { Provider } from "@/types/providers";
 import {
   listTrelloMembers,
@@ -46,6 +47,7 @@ type Props = {
   meetingId: string | null;
   provider?: Provider | null;
   targetId?: string | null;
+  trelloBoardId?: string | null;
 };
 
 export default function TasksReviewModal({
@@ -54,6 +56,7 @@ export default function TasksReviewModal({
   meetingId,
   provider = null,
   targetId = null,
+  trelloBoardId = null,
 }: Props) {
   const { meeting, loading } = useMeetingReview(meetingId);
 
@@ -61,6 +64,7 @@ export default function TasksReviewModal({
   const { deleting, deleteTask } = useDeleteTask();
   const { saving, saveTask } = useSaveChangeTask();
   const { creating, addTask } = useCreateNewTask();
+  const [sentFlag, setSentFlag] = useState<boolean>(false);
   const [members, setMembers] = useState<TrelloMember[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
   const [jiraUsers, setJiraUsers] = useState<JiraUser[]>([]);
@@ -78,6 +82,8 @@ export default function TasksReviewModal({
     if (meeting?.tasks) {
       setTasks(meeting.tasks as Task[]);
     }
+    const wasSent = Boolean(meeting?.sent);
+    setSentFlag(wasSent);
   }, [meeting]);
 
   const updateLocalTask = (id: string, changes: Partial<Task>) => {
@@ -90,10 +96,11 @@ export default function TasksReviewModal({
     async function loadMembers() {
       if (!open) return;
       if (provider !== "trello") return;
-      if (!targetId) return;
+      const boardId = trelloBoardId;
+      if (!boardId) return;
       setMembersLoading(true);
       try {
-        const data = await listTrelloMembers(targetId);
+        const data = await listTrelloMembers(String(boardId));
         setMembers(data);
         setTasks((prev) =>
           prev.map((t) => {
@@ -124,7 +131,7 @@ export default function TasksReviewModal({
       }
     }
     loadMembers();
-  }, [open, provider, targetId]);
+  }, [open, provider, trelloBoardId]);
 
   useEffect(() => {
     async function loadRoleActorsOnly() {
@@ -211,40 +218,29 @@ export default function TasksReviewModal({
           )}
 
           {!loading && (
-            <div className="flex flex-col gap-6">
-              <div className="flex justify-end">
-                <CreateNewTaskButton
-                  onClick={async () => {
-                    if (!meetingId) return;
-                    const res = await addTask(meetingId);
-                    if (res.success && res.task) {
-                      setTasks((prev) => [res.task!, ...prev]);
-                    }
-                  }}
-                  disabled={creating}
-                  loading={creating}
-                />
-              </div>
-              <div className="flex justify-end">
-                {provider && targetId ? (
-                  <SendTasksButton
-                    tasks={tasks}
-                    provider={provider}
-                    targetId={String(targetId)}
-                  />
-                ) : null}
-              </div>
+            <div className="flex justify-end">
+              <CreateNewTaskButton
+                onClick={async () => {
+                  if (!meetingId) return;
+                  const res = await addTask(meetingId);
+                  if (res.success && res.task) {
+                    setTasks((prev) => [res.task!, ...prev]);
+                  }
+                }}
+                disabled={creating}
+                loading={creating}
+              />
             </div>
           )}
         </div>
 
         {!loading && (
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4 md:gap-6">
             {tasks.length > 0 &&
               tasks.map((t) => (
                 <div
                   key={t.id}
-                  className="flex flex-col items-end space-y-4 rounded-md border p-4 transition-shadow hover:shadow-sm bg-slate-50"
+                  className="flex flex-col items-end space-y-3 sm:space-y-4 rounded-md border p-3 sm:p-4 transition-shadow hover:shadow-sm bg-slate-50"
                 >
                   <Field>
                     <FieldLabel>Tarefa</FieldLabel>
@@ -278,15 +274,13 @@ export default function TasksReviewModal({
                     <FieldLabel>Responsável</FieldLabel>
                     <FieldContent>
                       {provider === "trello" ? (
-                        members.some(
-                          (m) => m.id === (t.assignee || "").trim()
-                        ) ? (
+                        members.length > 0 ? (
                           <Select
                             value={t.assignee ?? ""}
                             onValueChange={(val) =>
                               updateLocalTask(t.id, { assignee: val })
                             }
-                            disabled={membersLoading || !targetId}
+                            disabled={membersLoading || !trelloBoardId}
                           >
                             <SelectTrigger className="bg-white">
                               <SelectValue
@@ -387,7 +381,7 @@ export default function TasksReviewModal({
                       />
                     </FieldContent>
                   </Field>
-                  <div className="flex gap-1">
+                  <div className="flex gap-2">
                     <TaskSaveChangeButton
                       onClick={async () => {
                         if (!meetingId) return;
@@ -403,6 +397,30 @@ export default function TasksReviewModal({
                   </div>
                 </div>
               ))}
+            <div className="flex items-center justify-between">
+              <div className="text-sm">
+                {sentFlag ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs bg-green-100 text-green-700">
+                    Já enviado
+                  </span>
+                ) : null}
+              </div>
+          <div className="flex justify-end">
+            {provider && (provider === "trello" ? Boolean(targetId) : Boolean(targetId)) ? (
+              <SendTasksButton
+                tasks={tasks}
+                provider={provider}
+                targetId={String(targetId)}
+                disabled={sentFlag}
+                onSent={async () => {
+                  if (!meetingId) return;
+                  await markMeetingSent(meetingId);
+                  setSentFlag(true);
+                }}
+              />
+            ) : null}
+          </div>
+            </div>
           </div>
         )}
       </DialogContent>

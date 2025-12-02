@@ -1,44 +1,34 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { connectProvider } from "@/lib/integrations";
 import { useSession } from "next-auth/react";
 import { setAccessToken } from "@/lib/http";
+import { connectProvider } from "@/lib/integrations";
 import { Button } from "@/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/ui/card";
 import { Loader2, KanbanSquare, CheckCircle2, XCircle, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 
 function extractToken(): string | null {
-  try {
-    // Tenta hash (#token=...)
-    const hash = typeof window !== "undefined" ? window.location.hash : "";
-    if (hash && hash.includes("token=")) {
-      const params = new URLSearchParams(hash.replace(/^#/, ""));
-      const t = params.get("token");
-      if (t) return t;
-    }
-    // Tenta query (?token=...)
-    const search = typeof window !== "undefined" ? window.location.search : "";
-    if (search) {
-      const params = new URLSearchParams(search);
-      const t = params.get("token");
-      if (t) return t;
-    }
-    return null;
-  } catch {
-    return null;
+  if (typeof window === "undefined") return null;
+  // Tenta hash (#token=...)
+  const hash = window.location.hash;
+  if (hash.includes("token=")) {
+    const params = new URLSearchParams(hash.replace(/^#/, ""));
+    return params.get("token");
   }
+  // Tenta query (?token=...)
+  const params = new URLSearchParams(window.location.search);
+  return params.get("token");
 }
 
 export default function TrelloCallbackPage() {
-  const [status, setStatus] = useState<string>("Conectando ao Trello...");
+  const [status, setStatus] = useState("Conectando ao Trello...");
   const [stage, setStage] = useState<"loading" | "success" | "error">("loading");
   const { data: session, status: authStatus } = useSession();
 
   useEffect(() => {
     async function run() {
-      // Garante que o usuário esteja autenticado e o token injetado
       if (authStatus === "loading") {
         setStatus("Carregando sessão...");
         setStage("loading");
@@ -50,71 +40,70 @@ export default function TrelloCallbackPage() {
         return;
       }
 
-      // Injeta explicitamente o token para evitar condição de corrida
       const accessToken = (session as any)?.accessToken ?? null;
       setAccessToken(accessToken);
 
       const token = extractToken();
-      const api_key = process.env.NEXT_PUBLIC_TRELLO_API_KEY;
-      if (!token || !api_key) {
+      const apiKey = process.env.NEXT_PUBLIC_TRELLO_API_KEY;
+      if (!token || !apiKey) {
         setStatus("Token ou API key ausente. Volte e tente novamente.");
         setStage("error");
         return;
       }
+
       try {
-        await connectProvider("trello", { api_key, token });
-        setStatus("Trello conectado com sucesso. Redirecionando...");
+        await connectProvider("trello", { api_key: apiKey, token });
+        setStatus("Trello conectado com sucesso! Redirecionando...");
         setStage("success");
         toast.success("Trello conectado com sucesso");
-        // Volta para a página de conexões
-        setTimeout(() => {
-          window.location.href = "/connections";
-        }, 1000);
-      } catch (e: any) {
-        setStatus(e?.message || "Falha ao conectar ao Trello");
+        setTimeout(() => (window.location.href = "/connections"), 1200);
+      } catch (err: any) {
+        setStatus(err?.message || "Falha ao conectar ao Trello");
         setStage("error");
-        toast.error(e?.message || "Falha ao conectar ao Trello");
+        toast.error(err?.message || "Falha ao conectar ao Trello");
       }
     }
+
     run();
   }, [authStatus, session]);
 
+  const statusColors = {
+    loading: "text-neutral-700",
+    success: "text-green-600",
+    error: "text-destructive",
+  };
+
+  const statusIcons = {
+    loading: <Loader2 className="h-6 w-6 animate-spin" />,
+    success: <CheckCircle2 className="h-6 w-6" />,
+    error: <XCircle className="h-6 w-6" />,
+  };
+
   return (
-    <div className="w-full min-h-[60vh] p-6 flex items-center justify-center">
-      <Card className="w-full max-w-md bg-white">
+    <div className="w-full min-h-[60vh] flex items-center justify-center p-4 md:p-8">
+      <Card className="w-full max-w-md bg-white shadow-lg rounded-xl hover:shadow-xl transition-shadow">
         <CardHeader className="space-y-2">
-          <div className="flex items-center gap-2">
-            <KanbanSquare className="h-6 w-6 text-primary" aria-hidden="true" />
-            <CardTitle>Integração Trello</CardTitle>
+          <div className="flex items-center gap-3">
+            <KanbanSquare className="h-6 w-6 text-primary" />
+            <CardTitle className="text-xl font-semibold">Integração Trello</CardTitle>
           </div>
-          <CardDescription>Conecte sua conta para enviar tasks diretamente.</CardDescription>
+          <CardDescription className="text-neutral-600">
+            Conecte sua conta Trello para enviar tasks diretamente.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col items-center gap-3">
-          {stage === "loading" && (
-            <div className="flex items-center gap-2 text-neutral-700">
-              <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-              <span>{status}</span>
-            </div>
-          )}
-          {stage === "success" && (
-            <div className="flex items-center gap-2 text-green-600">
-              <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
-              <span>{status}</span>
-            </div>
-          )}
-          {stage === "error" && (
-            <div className="flex items-center gap-2 text-destructive">
-              <XCircle className="h-5 w-5" aria-hidden="true" />
-              <span>{status}</span>
-            </div>
-          )}
-          <div className="w-full flex gap-2 mt-2">
-            <Button className="w-full gap-2" onClick={() => (window.location.href = "/connections")}>
-              <ArrowRight className="h-4 w-4" />
+        <CardContent className="flex flex-col items-center gap-4">
+          <div className={`flex items-center gap-2 ${statusColors[stage]}`}>
+            {statusIcons[stage]}
+            <span className="font-medium text-center">{status}</span>
+          </div>
+
+          <div className="flex flex-col w-full gap-2">
+            <Button className="w-full gap-2 justify-center" onClick={() => (window.location.href = "/connections")}>
               Ir para Conexões
+              <ArrowRight className="h-4 w-4" />
             </Button>
             {stage === "error" && (
-              <Button variant="outline" className="w-full" onClick={() => (window.location.href = "/connections")}>
+              <Button variant="outline" className="w-full" onClick={() => window.location.reload()}>
                 Tentar novamente
               </Button>
             )}

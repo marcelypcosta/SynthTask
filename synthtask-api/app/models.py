@@ -23,11 +23,6 @@ class User(BaseModel):
     name: str
 
 
-class TrelloConfig(BaseModel):
-    trello_api_key: str
-    trello_token: str
-    trello_list_id: str
-
 
 class MeetingText(BaseModel):
     text: str
@@ -45,7 +40,7 @@ class ProcessedMeeting(BaseModel):
     id: str
     tasks: List[Task]
     created_at: str
-    sent_to_trello: bool = False
+    sent: bool = False
 
 
 class TaskUpdate(BaseModel):
@@ -54,10 +49,6 @@ class TaskUpdate(BaseModel):
     assignee: Optional[str] = None
     due_date: Optional[str] = None
 
-
-class SendToTrelloRequest(BaseModel):
-    meeting_id: str
-    task_ids: List[str]
 
 
 class AuthResponse(BaseModel):
@@ -69,16 +60,6 @@ class MessageResponse(BaseModel):
     message: str
 
 
-class TrelloCardResponse(BaseModel):
-    task_id: str
-    card_id: str
-    card_url: str
-    card_name: str
-
-
-class SendToTrelloResponse(BaseModel):
-    message: str
-    cards: List[TrelloCardResponse]
 
 class ProjectCreate(BaseModel):
     name: str

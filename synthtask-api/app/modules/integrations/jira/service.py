@@ -77,15 +77,16 @@ class JiraService(IntegrationService):
                         if r2.status_code < 400:
                             resources = r2.json()
                             if isinstance(resources, list) and resources:
-                                jira_resources = [
-                                    r for r in resources
-                                    if str(r.get("resourceType", "")).lower() == "jira"
-                                    or "jira" in str(r.get("name", "")).lower()
-                                ]
-                                candidate = jira_resources[0] if jira_resources else resources[0]
-                                creds["cloud_id"] = candidate.get("id") or creds.get("cloud_id")
-                                creds["scopes"] = candidate.get("scopes", []) or creds.get("scopes", [])
-                                creds["site_url"] = candidate.get("url") or creds.get("site_url")
+                                if not creds.get("cloud_id"):
+                                    jira_resources = [
+                                        r for r in resources
+                                        if str(r.get("resourceType", "")).lower() == "jira"
+                                        or "jira" in str(r.get("name", "")).lower()
+                                    ]
+                                    candidate = jira_resources[0] if jira_resources else resources[0]
+                                    creds["cloud_id"] = candidate.get("id") or creds.get("cloud_id")
+                                    creds["scopes"] = candidate.get("scopes", []) or creds.get("scopes", [])
+                                    creds["site_url"] = candidate.get("url") or creds.get("site_url")
                     except Exception:
                         pass
                     await self.storage.save(user_id, creds)
@@ -149,16 +150,29 @@ class JiraService(IntegrationService):
         creds = await self.get_user_credentials(user_id)
         use_oauth = creds.get("oauth") and creds.get("access_token") and creds.get("cloud_id")
 
+        # Suporta tanto chave (ex.: PROJ) quanto id numérico (ex.: 10000)
+        key_or_id = str(target_id)
+        resolved_key = key_or_id
+        if key_or_id.isdigit():
+            resolved_key = await self.resolve_project_key(user_id, key_or_id, creds)
         fields: Dict[str, Any] = {
-            "project": {"key": target_id},
+            "project": {"key": resolved_key},
             "summary": title,
             "issuetype": {"name": "Task"},
         }
 
         description = task_data.get("description")
-        if description:
-            # Muitos tenants aceitam string simples; evita complexidade do ADF
-            fields["description"] = description
+        if description is not None:
+            if isinstance(description, dict) and str(description.get("type")) == "doc":
+                fields["description"] = description
+            else:
+                fields["description"] = {
+                    "type": "doc",
+                    "version": 1,
+                    "content": [
+                        {"type": "paragraph", "content": [{"type": "text", "text": str(description)}]}
+                    ],
+                }
 
         priority = task_data.get("priority")
         if priority:
@@ -166,8 +180,24 @@ class JiraService(IntegrationService):
 
         assignee = task_data.get("assignee")
         if assignee:
-            # Espera-se accountId do usuário no Jira Cloud
-            fields["assignee"] = {"accountId": assignee}
+            account_id = None
+            s = str(assignee).strip()
+            if s:
+                if ":" in s or len(s) >= 20:
+                    account_id = s
+                else:
+                    try:
+                        users = await self.get_assignable_users(user_id, resolved_key)
+                        ns = s.lower()
+                        for u in users:
+                            dn = str(u.get("displayName") or "").lower()
+                            if ns == dn or dn.startswith(ns) or ns in dn:
+                                account_id = u.get("accountId")
+                                break
+                    except Exception:
+                        account_id = None
+            if account_id:
+                fields["assignee"] = {"accountId": account_id}
 
         due_date = task_data.get("due_date")
         if due_date:

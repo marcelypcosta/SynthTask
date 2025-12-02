@@ -24,10 +24,14 @@ class AIService:
         try:
             print("🤖 Processando com Google Gemini...")
 
-            header = """
+            from datetime import date
+            today = date.today().isoformat()
+            header = f"""
 Você é um agente altamente especializado em extrair tarefas de transcrições de reunião.
 
 A transcrição pode estar perfeita, razoável ou muito ruim — contendo gírias, ruídos, frases truncadas, erros de ASR, repetições, interrupções ou informalidades. Ainda assim, você deve interpretar o texto e extrair tarefas válidas.
+
+Contexto temporal: HOJE = {today}
 
 ---------------------------------------
 TEXTO A SER ANALISADO:
@@ -53,7 +57,10 @@ TEXTO A SER ANALISADO:
    Caso contrário → assignee = null.
 
 5. DUE DATE.
-   Se houver indicação de data (“amanhã”, “sexta”, “dia 14”) → interpretar para YYYY-MM-DD.
+   Se houver indicação de data (“amanhã”, “sexta”, “dia 14”):
+     - interpretar para YYYY-MM-DD relativo a HOJE.
+     - quando mês/dia forem citados sem ano, ASSUMA a data mais PRÓXIMA no FUTURO.
+     - NUNCA gere datas no passado; ajuste ano quando necessário.
    Se não houver → due_date = null.
 
 6. NÃO INVENTAR.
@@ -114,7 +121,74 @@ Se nenhuma tarefa existir, retorne:
 
             result["tasks"] = normalized_tasks
 
-            # Sem derivação adicional
+            try:
+                from datetime import datetime, date as _date, timedelta
+                import re
+                today_d = _date.today()
+                weekday_idx = {
+                    "segunda": 0,
+                    "terca": 1,
+                    "terça": 1,
+                    "quarta": 2,
+                    "quinta": 3,
+                    "sexta": 4,
+                    "sabado": 5,
+                    "sábado": 5,
+                    "domingo": 6,
+                }
+                def normalize_text(s: str) -> str:
+                    return (
+                        s.lower()
+                        .strip()
+                        .replace("ç", "c")
+                        .replace("ã", "a")
+                        .replace("á", "a")
+                        .replace("é", "e")
+                        .replace("í", "i")
+                        .replace("ó", "o")
+                        .replace("ú", "u")
+                    )
+                def next_weekday(idx: int) -> _date:
+                    delta = (idx - today_d.weekday()) % 7
+                    if delta == 0:
+                        delta = 7
+                    return today_d + timedelta(days=delta)
+                for t in result["tasks"]:
+                    d = t.get("due_date")
+                    if isinstance(d, str):
+                        s = normalize_text(d)
+                        if s in ("amanha",):
+                            t["due_date"] = (today_d + timedelta(days=1)).isoformat()
+                            continue
+                        if s in ("hoje",):
+                            t["due_date"] = today_d.isoformat()
+                            continue
+                        if "depois de amanha" in s:
+                            t["due_date"] = (today_d + timedelta(days=2)).isoformat()
+                            continue
+                        for name, idx in weekday_idx.items():
+                            if name in s:
+                                t["due_date"] = next_weekday(idx).isoformat()
+                                break
+                        if isinstance(t.get("due_date"), str):
+                            pass
+                        else:
+                            m = re.search(r"em\s*(\d+)\s*dias", s)
+                            if m:
+                                n = int(m.group(1))
+                                t["due_date"] = (today_d + timedelta(days=n)).isoformat()
+                                continue
+                        try:
+                            parsed = datetime.strptime(d[:10], "%Y-%m-%d").date()
+                            if parsed < today_d:
+                                corrected = parsed.replace(year=today_d.year)
+                                if corrected < today_d:
+                                    corrected = corrected.replace(year=today_d.year + 1)
+                                t["due_date"] = corrected.isoformat()
+                        except Exception:
+                            pass
+            except Exception:
+                pass
 
             print(f"✅ {len(result['tasks'])} tasks encontradas com sucesso!")
 

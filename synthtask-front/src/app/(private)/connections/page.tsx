@@ -132,13 +132,13 @@ export default function ConnectionsPage() {
         </p>
       </header>
 
-      <div className="w-full flex flex-col gap-6">
+      <div className="w-full flex flex-col gap-4 md:gap-6">
         {!isConnectionsLoaded && (
           <div className="text-neutral-600">Carregando conexões...</div>
         )}
 
         {isConnectionsLoaded && availableTools.length > 0 && (
-          <div className="w-full flex flex-col space-y-4">
+          <div className="w-full flex flex-col space-y-3 md:space-y-4">
             <h2 className="font-medium text-md mb-2">
               Ferramentas disponíveis
             </h2>
@@ -156,7 +156,7 @@ export default function ConnectionsPage() {
         )}
 
         {isConnectionsLoaded && connectedTools.length > 0 && (
-          <div className="w-full flex flex-col space-y-4">
+          <div className="w-full flex flex-col space-y-3 md:space-y-4">
             <h2 className="font-medium text-md mb-2">Ferramentas conectadas</h2>
             {connectedTools.map((t) => (
               <div key={t.provider} className="space-y-2">

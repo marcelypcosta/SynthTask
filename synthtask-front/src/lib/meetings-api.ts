@@ -5,7 +5,7 @@ export interface MeetingListItem {
   file_name?: string | null;
   created_at: string;
   tasks_count: number;
-  sent_to_trello: boolean;
+  sent?: boolean;
 }
 
 export interface Task {
@@ -20,7 +20,7 @@ export interface ProcessedMeeting {
   id: string;
   tasks: Task[];
   created_at: string;
-  sent_to_trello: boolean;
+  sent?: boolean;
 }
 
 export async function getMeetings(): Promise<MeetingListItem[]> {
@@ -74,4 +74,9 @@ export async function createTask(
 ): Promise<Task> {
   const res = await api.post(`/api/meetings/${meetingId}/tasks`, payload);
   return res.data as Task;
+}
+
+export async function markMeetingSent(meetingId: string): Promise<string> {
+  const res = await api.post(`/api/meetings/${meetingId}/sent`);
+  return (res.data?.message as string) ?? "Reunião marcada como enviada";
 }

@@ -60,6 +60,10 @@ class JiraOAuthExchangePayload(BaseModel):
     code: str
     redirect_uri: Optional[str] = None
 
+class JiraSelectPayload(BaseModel):
+    cloud_id: Optional[str] = None
+    site_url: Optional[str] = None
+
 # Seção: Helpers
 def _exchange_code_for_token(code: str, redirect_uri: str) -> Dict[str, Any]:
     client_id_raw = os.getenv("JIRA_CLIENT_ID") or ""
@@ -234,6 +238,51 @@ async def jira_oauth_exchange(payload: JiraOAuthExchangePayload, current_user: d
     return {"message": "Jira conectado via OAuth", "cloud_id": cloud_id, "scopes": selected_scopes, "site_url": site_url, "user_email": user_email, "user_account_id": user_account_id}
 
 
+@router.get("/jira/oauth/resources")
+async def jira_oauth_resources(current_user: dict = Depends(get_current_user)):
+    storage = IntegrationStorage(provider="jira")
+    creds = await storage.get(current_user["id"])
+    if not creds or not creds.get("access_token"):
+        raise HTTPException(status_code=400, detail="Jira não conectado")
+    resources = _get_accessible_resources(creds["access_token"])
+    normalized = []
+    for r in resources:
+        normalized.append({
+            "id": r.get("id"),
+            "url": r.get("url"),
+            "name": r.get("name"),
+            "resourceType": r.get("resourceType"),
+            "scopes": r.get("scopes", []),
+        })
+    return {"resources": normalized}
+
+@router.post("/jira/oauth/select")
+async def jira_oauth_select(payload: JiraSelectPayload, current_user: dict = Depends(get_current_user)):
+    storage = IntegrationStorage(provider="jira")
+    creds = await storage.get(current_user["id"])
+    if not creds or not creds.get("access_token"):
+        raise HTTPException(status_code=400, detail="Jira não conectado")
+    resources = _get_accessible_resources(creds["access_token"])
+    chosen = None
+    if payload.cloud_id:
+        for r in resources:
+            if str(r.get("id")) == str(payload.cloud_id):
+                chosen = r
+                break
+    if not chosen and payload.site_url:
+        su = str(payload.site_url).rstrip("/")
+        for r in resources:
+            if str(r.get("url")).rstrip("/") == su:
+                chosen = r
+                break
+    if not chosen:
+        raise HTTPException(status_code=404, detail="Site não encontrado nas permissões do token")
+    creds["cloud_id"] = chosen.get("id")
+    creds["site_url"] = chosen.get("url")
+    creds["scopes"] = chosen.get("scopes", [])
+    await storage.save(current_user["id"], creds)
+    return {"cloud_id": creds["cloud_id"], "site_url": creds["site_url"]}
+
 @router.get("/{provider}/targets")
 async def list_targets(provider: str, current_user: dict = Depends(get_current_user)):
     """Listar alvos genéricos do provedor (boards/projetos)."""
@@ -254,6 +303,13 @@ async def trello_lists(board_id: str, current_user: dict = Depends(get_current_u
     service = get_integration("trello")
     lists = await service.get_lists(current_user["id"], board_id)  # type: ignore
     return {"lists": lists}
+
+@router.get("/trello/lists/{list_id}/board")
+async def trello_list_board(list_id: str, current_user: dict = Depends(get_current_user)):
+    """Resolver o board_id a partir de um list_id do Trello."""
+    service = get_integration("trello")
+    board_id = await service.get_board_id_for_list(current_user["id"], list_id)  # type: ignore
+    return {"board_id": board_id}
 
 @router.get("/trello/boards/{board_id}/members")
 async def trello_members(board_id: str, current_user: dict = Depends(get_current_user)):
@@ -295,6 +351,25 @@ async def create_task(provider: str, payload: Dict[str, Any], current_user: dict
     task = payload.get("task")
     if not target_id or not isinstance(task, dict):
         raise HTTPException(status_code=400, detail="Payload inválido: target_id e task são obrigatórios")
+    # Validação específica Trello: target_id DEVE ser id da lista (idList)
+    if provider == "trello":
+        try:
+            creds = await service.get_user_credentials(current_user["id"])  # type: ignore
+        except Exception:
+            creds = {}
+        trello_key = creds.get("trello_api_key") or creds.get("api_key") or os.getenv("TRELLO_KEY")
+        trello_token = creds.get("trello_token") or creds.get("token") or os.getenv("TRELLO_TOKEN")
+        params = {"key": (trello_key or "").strip(), "token": (trello_token or "").strip()}
+        if not params["key"] or not params["token"]:
+            raise HTTPException(status_code=400, detail="Credenciais do Trello ausentes (key/token)")
+        # Checar se é lista válida
+        lr = requests.get(f"https://api.trello.com/1/lists/{target_id}", params={**params, "fields": "idBoard"})
+        if lr.status_code >= 400:
+            # Talvez seja um board_id; informar que precisa de list_id
+            br = requests.get(f"https://api.trello.com/1/boards/{target_id}", params=params)
+            if br.status_code < 400:
+                raise HTTPException(status_code=400, detail="target_id inválido: informe o ID da lista (idList), não do board")
+        # Se passar, segue com criação
     result = await service.create_task(current_user["id"], target_id, task)
     return {"result": result}
 

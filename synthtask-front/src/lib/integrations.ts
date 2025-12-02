@@ -56,6 +56,16 @@ export async function listTargets(provider: Provider): Promise<unknown> {
   return data;
 }
 
+export interface TrelloListItem {
+  id: string;
+  name: string;
+}
+
+export async function listTrelloLists(boardId: string): Promise<TrelloListItem[]> {
+  const { data } = await api.get(`/api/integrations/trello/boards/${boardId}/lists`);
+  return (data?.lists as TrelloListItem[]) || [];
+}
+
 export interface TrelloMember {
   id: string;
   username?: string;
@@ -70,6 +80,11 @@ export async function listTrelloMembers(
     `/api/integrations/trello/boards/${boardId}/members`
   );
   return (data?.members as TrelloMember[]) || [];
+}
+
+export async function getTrelloBoardIdForList(listId: string): Promise<string | null> {
+  const { data } = await api.get(`/api/integrations/trello/lists/${listId}/board`);
+  return (data?.board_id as string) || null;
 }
 
 export interface JiraUser {

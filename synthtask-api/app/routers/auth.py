@@ -3,7 +3,8 @@ Rotas de autenticação para a Sintask API
 """
 from fastapi import APIRouter, HTTPException, Depends
 
-from ..models import UserRegister, UserLogin, User, TrelloConfig, AuthResponse, MessageResponse
+from ..models import UserRegister, UserLogin, User, AuthResponse, MessageResponse
+from pydantic import BaseModel
 from ..core.auth import hash_password, verify_password, create_access_token, get_current_user
 from ..core.database import database, users_table
 from ..core.utils import (
@@ -13,6 +14,11 @@ from ..core.utils import (
 from app.modules.integrations.registry import get_integration
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
+
+class TrelloConfigPayload(BaseModel):
+    trello_api_key: str
+    trello_token: str
+    trello_list_id: str
 
 
 @router.post("/register", response_model=AuthResponse)
@@ -71,7 +77,7 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 
 @router.put("/trello-config", response_model=MessageResponse)
 async def update_trello_config(
-    config: TrelloConfig,
+    config: TrelloConfigPayload,
     current_user: dict = Depends(get_current_user)
 ):
     """Update Trello configuration for current user"""

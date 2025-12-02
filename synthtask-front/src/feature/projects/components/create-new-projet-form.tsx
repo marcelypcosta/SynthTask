@@ -13,7 +13,7 @@ import { Button } from "@/ui/button";
 import { Field, FieldGroup, FieldLabel, FieldSet } from "@/ui/field";
 
 import type { Provider } from "@/types/providers";
-import { checkConnected, listTargets } from "@/lib/integrations";
+import { checkConnected, listTargets, listTrelloLists } from "@/lib/integrations";
 import { createProject, getProjects, type ProjectListItem } from "@/lib/projects";
 
 export default function CreateNewProjectForm({
@@ -26,6 +26,8 @@ export default function CreateNewProjectForm({
   const [providers, setProviders] = useState<Provider[]>([]);
   const [targets, setTargets] = useState<{ id: string; name: string }[]>([]);
   const [targetId, setTargetId] = useState("");
+  const [selectedBoardId, setSelectedBoardId] = useState("");
+  const [trelloLists, setTrelloLists] = useState<{ id: string; name: string }[]>([]);
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,24 +70,76 @@ export default function CreateNewProjectForm({
       if (!provider) {
         setTargets([]);
         setTargetId("");
+        setSelectedBoardId("");
+        setTrelloLists([]);
         return;
       }
       const data: any = await listTargets(provider);
-      const items = Array.isArray(data?.boards)
-        ? data.boards.map((b: any) => ({ id: String(b.id), name: String(b.name ?? b.id) }))
-        : Array.isArray(data?.projects)
-        ? data.projects.map((p: any) => ({ id: String(p.id), name: String(p.name ?? p.id) }))
-        : [];
-      const filtered = items.filter((it: { id: string }) => !usedTargetIds.has(String(it.id)));
-      if (!mounted) return;
-      setTargets(filtered);
-      setTargetId(filtered[0]?.id ?? "");
+      if (provider === "trello") {
+        const boards = Array.isArray(data?.boards)
+          ? data.boards.map((b: any) => ({ id: String(b.id), name: String(b.name ?? b.id) }))
+          : [];
+        const filteredBoards = boards.filter((it: { id: string }) => !usedTargetIds.has(String(it.id)));
+        if (!mounted) return;
+        setTargets(filteredBoards);
+        const firstBoard = filteredBoards[0]?.id ?? "";
+        setSelectedBoardId(firstBoard);
+        if (firstBoard) {
+          try {
+            const lists = await listTrelloLists(firstBoard);
+            const mapped = lists.map((l) => ({ id: String(l.id), name: String(l.name ?? l.id) }));
+            setTrelloLists(mapped);
+            setTargetId(mapped[0]?.id ?? "");
+          } catch {
+            setTrelloLists([]);
+            setTargetId("");
+          }
+        } else {
+          setTrelloLists([]);
+          setTargetId("");
+        }
+      } else {
+        const items = Array.isArray(data?.projects)
+          ? data.projects.map((p: any) => ({ id: String(p.id), name: String(p.name ?? p.id) }))
+          : [];
+        const filtered = items.filter((it: { id: string }) => !usedTargetIds.has(String(it.id)));
+        if (!mounted) return;
+        setTargets(filtered);
+        setTargetId(filtered[0]?.id ?? "");
+      }
     }
     loadTargets();
     return () => {
       mounted = false;
     };
   }, [provider, usedTargetIds]);
+
+  useEffect(() => {
+    if (provider !== "trello") return;
+    let mounted = true;
+    async function loadLists() {
+      if (!selectedBoardId) {
+        setTrelloLists([]);
+        setTargetId("");
+        return;
+      }
+      try {
+        const lists = await listTrelloLists(selectedBoardId);
+        const mapped = lists.map((l) => ({ id: String(l.id), name: String(l.name ?? l.id) }));
+        if (!mounted) return;
+        setTrelloLists(mapped);
+        setTargetId(mapped[0]?.id ?? "");
+      } catch {
+        if (!mounted) return;
+        setTrelloLists([]);
+        setTargetId("");
+      }
+    }
+    loadLists();
+    return () => {
+      mounted = false;
+    };
+  }, [provider, selectedBoardId]);
 
   const canSubmit = useMemo(
     () => Boolean(name.trim() && provider && targetId),
@@ -105,12 +159,14 @@ export default function CreateNewProjectForm({
       name: name.trim(),
       provider,
       target_id: targetId,
-      target_name: target?.name,
+      target_name: provider === "trello" ? trelloLists.find((l) => l.id === targetId)?.name : target?.name,
     };
     const project = await createProject(payload);
     if (onCreated) onCreated(project);
     setName("");
     setTargetId("");
+    setSelectedBoardId("");
+    setTrelloLists([]);
   }
 
   return (
@@ -146,27 +202,59 @@ export default function CreateNewProjectForm({
               </SelectContent>
             </Select>
           </Field>
-          <Field>
-            <FieldLabel htmlFor="target">Board/Projeto</FieldLabel>
-            <Select value={targetId} onValueChange={(v) => setTargetId(v)}>
-              <SelectTrigger id="target">
-                <SelectValue placeholder="Selecione o destino das tasks" />
-              </SelectTrigger>
-              <SelectContent>
-                {targets.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field orientation="responsive">
-            <Button type="submit" disabled={!canSubmit}>
-              Criar
-            </Button>
-            <Button variant="outline" type="button">
-              Cancelar
+          {provider === "trello" ? (
+            <>
+              <Field>
+                <FieldLabel htmlFor="board">Board</FieldLabel>
+                <Select value={selectedBoardId} onValueChange={(v) => setSelectedBoardId(v)}>
+                  <SelectTrigger id="board">
+                    <SelectValue placeholder="Selecione o board" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {targets.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="list">Lista</FieldLabel>
+                <Select value={targetId} onValueChange={(v) => setTargetId(v)}>
+                  <SelectTrigger id="list">
+                    <SelectValue placeholder="Selecione a lista" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {trelloLists.map((l) => (
+                      <SelectItem key={l.id} value={l.id}>
+                        {l.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            </>
+          ) : (
+            <Field>
+              <FieldLabel htmlFor="target">Projeto</FieldLabel>
+              <Select value={targetId} onValueChange={(v) => setTargetId(v)}>
+                <SelectTrigger id="target">
+                  <SelectValue placeholder="Selecione o destino das tasks" />
+                </SelectTrigger>
+                <SelectContent>
+                  {targets.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
+          <Field orientation="responsive" className="justify-end">
+            <Button type="submit" disabled={!canSubmit} className="rounded-sm">
+              Criar Projeto
             </Button>
           </Field>
         </FieldGroup>

@@ -13,6 +13,7 @@ type Props = {
   provider: Provider;
   targetId: string;
   onSent?: (results: SendTasksResponse["results"]) => void;
+  disabled?: boolean;
 };
 
 export default function SendTasksButton({
@@ -20,8 +21,9 @@ export default function SendTasksButton({
   provider,
   targetId,
   onSent,
+  disabled = false,
 }: Props) {
-  const { sending, send } = useSendingTasks();
+  const { sending, error, send } = useSendingTasks();
   const [localResults, setLocalResults] = useState<
     SendTasksResponse["results"]
   >([]);
@@ -29,12 +31,14 @@ export default function SendTasksButton({
   async function handleSend() {
     const r = await send(provider, targetId, tasks);
     setLocalResults(r);
-    onSent?.(r);
+    if (r.length === tasks.length) {
+      onSent?.(r);
+    }
   }
 
   return (
     <div className="flex flex-col gap-2">
-      <Button onClick={handleSend} disabled={sending}>
+      <Button onClick={handleSend} disabled={sending || disabled}>
         {sending ? (
           <span className="flex items-center gap-2">
             <Loader2 className="h-4 w-4 animate-spin" /> Enviando...
@@ -46,34 +50,11 @@ export default function SendTasksButton({
           </span>
         )}
       </Button>
-      {localResults.length > 0 && (
-        <div className="text-xs text-neutral-600">
-          {localResults.map((r, idx) => (
-            <div key={idx} className="flex flex-col">
-              <span>
-                <strong>{r.title}</strong>
-              </span>
-              <div className="flex flex-col">
-                <a
-                  className="text-blue-600 underline"
-                  href={r.trelloCardUrl || undefined}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {r.trelloCardUrl ? "Trello card" : "Trello card não criado"}
-                </a>
-                <a
-                  className="text-blue-600 underline"
-                  href={r.jiraIssueUrl || undefined}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {r.jiraIssueUrl ? "Jira issue" : "Jira issue não criada"}
-                </a>
-              </div>
-            </div>
-          ))}
-        </div>
+      {localResults.length === tasks.length && (
+        <div className="text-xs text-green-700">Enviado</div>
+      )}
+      {error && (
+        <div className="text-xs text-red-700">Falha ao enviar tasks</div>
       )}
     </div>
   );

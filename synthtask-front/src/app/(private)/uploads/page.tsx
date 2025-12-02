@@ -83,7 +83,7 @@ export default function UploadsPage() {
   return (
     <>
       <div className="w-full">
-        <header className="mb-6">
+        <header className="mb-6 md:mb-8">
           <h1 className="text-3xl font-semibold text-neutral-800 mt-2">
             Upload de Transcrições
           </h1>
@@ -107,7 +107,7 @@ export default function UploadsPage() {
         />
 
         {lastProcessed && (
-          <div className="w-full mt-6 p-4 border rounded-sm bg-neutral-50">
+          <div className="w-full mt-4 md:mt-6 p-4 sm:p-5 border rounded-sm bg-neutral-50">
             <h2 className="text-lg font-semibold text-neutral-800 mb-2">
               Última transcrição processada
             </h2>
@@ -120,7 +120,7 @@ export default function UploadsPage() {
           </div>
         )}
 
-        <div className="w-full mt-6">
+        <div className="w-full mt-4 md:mt-6">
           <h2 className="text-lg font-semibold text-neutral-800 mb-2">
             Transcrições processadas
           </h2>
@@ -129,6 +129,7 @@ export default function UploadsPage() {
               <TableRow>
                 <TableHead className="w-[50%]">Transcrições</TableHead>
                 <TableHead>Data</TableHead>
+                <TableHead>Status de Envio</TableHead>
                 <TableHead className="text-right">Tarefas</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
@@ -140,6 +141,11 @@ export default function UploadsPage() {
                     {m.file_name || "(Arquivo sem nome)"}
                   </TableCell>
                   <TableCell>{formatDate(m.created_at)}</TableCell>
+                  <TableCell>
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs ${m.sent ? "bg-green-100 text-green-700" : "bg-neutral-200 text-neutral-700"}`}>
+                      {m.sent ? "Enviado" : "Pendente"}
+                    </span>
+                  </TableCell>
                   <TableCell className="text-right">{m.tasks_count}</TableCell>
                   <TableCell className="text-right">
                     <Button
@@ -157,7 +163,7 @@ export default function UploadsPage() {
               ))}
               {meetings.length === 0 && (
                 <TableRow>
-                  <TableCell className="text-neutral-600" colSpan={4}>
+                  <TableCell className="text-neutral-600" colSpan={5}>
                     Nenhuma transcrição processada ainda.
                   </TableCell>
                 </TableRow>

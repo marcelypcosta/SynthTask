@@ -17,9 +17,9 @@ export default function ToolIntegrationCard({
   loading,
 }: ToolIntegrationCardProps) {
   return (
-    <div className="w-full flex items-center justify-between gap-2 border border-neutral-300 rounded-sm p-2">
+    <div className="w-full flex items-center justify-between gap-2 sm:gap-3 border border-neutral-300 rounded-sm p-2 sm:p-3">
       <div className="flex items-center gap-2">
-        <div className="bg-neutral-100 p-2 rounded-sm">
+        <div className="bg-neutral-100 p-1.5 sm:p-2 rounded-sm">
           <KanbanSquare className="w-8 h-8 text-primary" />
         </div>
         <div>

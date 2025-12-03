@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { signOut } from "next-auth/react";
-import { Loader2, LogOutIcon } from "lucide-react";
+import { Loader2, LogOut } from "lucide-react";
 import { SidebarMenuButton } from "@/ui/sidebar";
 
 export default function LogoutButton() {
@@ -19,16 +19,14 @@ export default function LogoutButton() {
     <SidebarMenuButton
       onClick={handleLogout}
       disabled={loggingOut}
-      aria-busy={loggingOut}
-      aria-label="Encerrar sessão"
-      className="text-destructive hover:!bg-destructive/10 hover:!text-destructive active:!bg-destructive/10 active:!text-destructive"
+      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive group"
     >
       {loggingOut ? (
         <Loader2 className="size-4 animate-spin" />
       ) : (
-        <LogOutIcon className="size-4" />
+        <LogOut className="size-4 group-hover:text-destructive" />
       )}
-      <span>{loggingOut ? "Saindo..." : "Sair"}</span>
+      <span>{loggingOut ? "Saindo..." : "Sair da conta"}</span>
     </SidebarMenuButton>
   );
 }

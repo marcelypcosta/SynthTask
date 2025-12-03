@@ -1,16 +1,21 @@
 "use client";
 
-import { Calendar, Clock, ListChecks, CheckCircle2 } from "lucide-react";
+import {
+  Calendar,
+  Clock,
+  ArrowRight,
+  CheckCircle2,
+  Clock3,
+} from "lucide-react";
 import {
   Card,
   CardHeader,
   CardTitle,
   CardDescription,
-  CardContent,
   CardFooter,
-  CardAction,
 } from "@/ui/card";
 import { Button } from "@/ui/button";
+import { Badge } from "@/ui/badge";
 import { formatDate, formatTime } from "@/lib/meetings";
 
 type Props = {
@@ -29,51 +34,67 @@ export default function MeetingCard({
   onReview,
 }: Props) {
   return (
-    <Card className="bg-white rounded-sm transition-shadow hover:shadow-sm">
+    <Card className="group transition-all hover:shadow-md border-border/50 bg-white">
       <CardHeader>
-        <CardTitle className="text-base">
-          {fileName || "(Arquivo sem nome)"}
-        </CardTitle>
-        <CardDescription className="text-sm text-neutral-600">
-          Reunião processada pelo sistema
-        </CardDescription>
-        <CardAction>
-          <div
-            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 sm:px-3 py-1 text-sm ${
-              sent
-                ? "bg-green-100 text-green-700"
-                : "bg-neutral-200 text-neutral-700"
-            }`}
-          >
-            <CheckCircle2
-              className={`h-4 w-4 ${
-                sent ? "text-green-600" : "text-neutral-600"
-              }`}
-            />
-            {sent ? "Tasks enviadas" : "Tasks não enviadas"}
+        {/* Alterado para flex-col no mobile e sm:flex-row no desktop */}
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+          {/* Container do Título e Descrição */}
+          <div className="space-y-1.5 overflow-hidden w-full">
+            <CardTitle
+              className="text-base font-semibold truncate leading-tight"
+              title={fileName || ""}
+            >
+              {fileName || "(Arquivo sem nome)"}
+            </CardTitle>
+
+            <CardDescription className="flex flex-wrap items-center gap-3 text-xs">
+              <span className="flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5" />
+                {formatDate(createdAt)}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5" />
+                {formatTime(createdAt)}
+              </span>
+            </CardDescription>
           </div>
-        </CardAction>
+
+          {/* Container do Badge (Action) */}
+          <div className="shrink-0 self-start sm:self-auto">
+            {sent ? (
+              <Badge
+                variant="secondary"
+                className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200 gap-1"
+              >
+                <CheckCircle2 className="h-3 w-3" /> Enviado
+              </Badge>
+            ) : (
+              <Badge
+                variant="outline"
+                className="text-amber-600 bg-amber-50 border-amber-200 gap-1"
+              >
+                <Clock3 className="h-3 w-3" /> Pendente
+              </Badge>
+            )}
+          </div>
+        </div>
       </CardHeader>
-      <CardContent className="flex items-center gap-2">
-        <div className="inline-flex items-center gap-1.5 rounded-full px-2.5 sm:px-3  text-sm bg-black/5">
-          <Calendar className="h-4 w-4 text-muted-foreground" />
-          <time dateTime={createdAt}>{formatDate(createdAt)}</time>
-        </div>
-        <div className="inline-flex items-center gap-1.5 rounded-full px-2.5 sm:px-3 py-1 text-sm bg-black/5">
-          <Clock className="h-4 w-4 text-muted-foreground" />
-          <time dateTime={createdAt}>{formatTime(createdAt)}</time>
-        </div>
-      </CardContent>
-      <CardFooter>
+
+      <CardFooter className="pt-0">
         <Button
-          className="w-full gap-2 focus-visible:ring-2 focus-visible:ring-offset-2"
+          className={`w-full gap-2 transition-colors h-10 ${
+            sent
+              ? "bg-muted text-muted-foreground hover:bg-muted"
+              : "bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
+          }`}
           disabled={Boolean(sent)}
+          variant={sent ? "ghost" : "default"}
           onClick={() => {
             if (!sent) onReview(id);
           }}
         >
-          <ListChecks className="h-4 w-4" aria-hidden="true" />
-          Revisar
+          {sent ? "Processado" : "Revisar Tasks"}
+          {!sent && <ArrowRight className="h-4 w-4" />}
         </Button>
       </CardFooter>
     </Card>

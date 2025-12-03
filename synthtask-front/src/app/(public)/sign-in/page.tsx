@@ -13,25 +13,48 @@ import SignInForm from "@/feature/auth/components/sign-in-form";
 
 export default function SignInPage() {
   return (
-    <main className="min-h-svh grid place-items-center px-4">
-      <Card className="w-full max-w-[420px] md:max-w-[480px]">
-        <CardHeader>
-          <CardTitle>Entrar</CardTitle>
-          <CardDescription>Acesse sua conta e continue automatizando suas reuniões.</CardDescription>
+    <>
+      <Card className="border-border/50 shadow-lg">
+        <CardHeader className="space-y-1 text-center">
+          <CardTitle className="text-2xl font-bold">
+            Bem-vindo de volta
+          </CardTitle>
+          <CardDescription>
+            Acesse sua conta para gerenciar suas reuniões
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <SignInForm />
-          <p className="mt-4 text-sm text-muted-foreground">
+
+          <div className="mt-6 text-center text-sm text-muted-foreground">
             Não possui conta?{" "}
             <Link
               href="/register"
-              className="text-primary underline-offset-4 hover:underline"
+              className="font-medium text-[#3B82F6] underline-offset-4 hover:underline"
             >
-              Registre-se
+              Cadastre-se agora
             </Link>
-          </p>
+          </div>
         </CardContent>
       </Card>
-    </main>
+
+      <p className="px-8 text-center text-xs text-muted-foreground mt-6">
+        Ao clicar em entrar, você concorda com nossos{" "}
+        <Link
+          href="/terms"
+          className="underline underline-offset-4 hover:text-primary"
+        >
+          Termos de Serviço
+        </Link>{" "}
+        e{" "}
+        <Link
+          href="/privacy"
+          className="underline underline-offset-4 hover:text-primary"
+        >
+          Política de Privacidade
+        </Link>
+        .
+      </p>
+    </>
   );
 }

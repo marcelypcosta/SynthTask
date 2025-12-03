@@ -1,4 +1,5 @@
 "use client";
+
 import Link from "next/link";
 
 import {
@@ -12,25 +13,46 @@ import RegisterForm from "@/feature/auth/components/register-form";
 
 export default function RegisterPage() {
   return (
-    <main className="min-h-svh grid place-items-center px-4">
-      <Card className="w-full max-w-[420px] md:max-w-[480px]">
-        <CardHeader>
-          <CardTitle>Criar conta</CardTitle>
-          <CardDescription>Crie sua conta e otimize a gestão do seu time.</CardDescription>
+    <>
+      <Card className="border-border/50 shadow-lg">
+        <CardHeader className="space-y-1 text-center">
+          <CardTitle className="text-2xl font-bold">Criar conta</CardTitle>
+          <CardDescription>
+            Comece agora e otimize a gestão do seu time
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <RegisterForm />
-          <p className="mt-4 text-sm text-muted-foreground">
-            Já possui conta?{" "}
+
+          <div className="mt-6 text-center text-sm text-muted-foreground">
+            Já possui uma conta?{" "}
             <Link
               href="/sign-in"
-              className="text-primary underline-offset-4 hover:underline"
+              className="font-medium text-[#3B82F6] underline-offset-4 hover:underline"
             >
               Entrar
             </Link>
-          </p>
+          </div>
         </CardContent>
       </Card>
-    </main>
+
+      <p className="px-8 text-center text-xs text-muted-foreground mt-6">
+        Ao se registrar, você concorda com nossos{" "}
+        <Link
+          href="#"
+          className="underline underline-offset-4 hover:text-primary"
+        >
+          Termos de Serviço
+        </Link>{" "}
+        e{" "}
+        <Link
+          href="#"
+          className="underline underline-offset-4 hover:text-primary"
+        >
+          Política de Privacidade
+        </Link>
+        .
+      </p>
+    </>
   );
 }

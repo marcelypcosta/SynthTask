@@ -22,7 +22,7 @@ import {
 
 export default function DashboardPage() {
   return (
-    <main className="flex min-h-svh flex-col items-center justify-center bg-muted/40 p-6 md:p-10">
+    <main className="flex min-h-svh flex-col items-center justify-center p-6 md:p-10">
       <div className="w-full max-w-4xl space-y-8">
         <header className="text-center space-y-2">
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">

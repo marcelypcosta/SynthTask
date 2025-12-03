@@ -4,11 +4,29 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { setAccessToken, api, AxiosRequestError } from "@/lib/http";
 import { Button } from "@/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardFooter,
+} from "@/ui/card";
 import { Input } from "@/ui/input";
-import { Loader2, SquareKanban, CheckCircle2, XCircle, ArrowRight, Search } from "lucide-react";
+import {
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  ArrowRight,
+  Search,
+  Puzzle,
+  RotateCcw,
+  Globe,
+} from "lucide-react";
 import { toast } from "sonner";
+import Link from "next/link";
 
+// --- Funções Auxiliares (Mantidas) ---
 function extractCode(): string | null {
   if (typeof window === "undefined") return null;
   const params = new URLSearchParams(window.location.search);
@@ -28,23 +46,24 @@ function extractState(): string | null {
 }
 
 export default function JiraCallbackPage() {
-  const [status, setStatus] = useState("Conectando ao Jira...");
-  const [stage, setStage] = useState<"loading" | "success" | "error">("loading");
-  const [resources, setResources] = useState<{ id: string; url: string; name?: string }[]>([]);
+  const [status, setStatus] = useState("Validando credenciais...");
+  const [stage, setStage] = useState<
+    "loading" | "selection" | "success" | "error"
+  >("loading");
+  const [resources, setResources] = useState<
+    { id: string; url: string; name?: string }[]
+  >([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [query, setQuery] = useState("");
   const { data: session, status: authStatus } = useSession();
 
+  // --- Lógica Principal (Mantida com ajuste de stages) ---
   useEffect(() => {
     async function run() {
-      if (authStatus === "loading") {
-        setStatus("Carregando sessão...");
-        setStage("loading");
-        return;
-      }
+      if (authStatus === "loading") return;
 
       if (authStatus !== "authenticated") {
-        setStatus("Você precisa estar autenticado para conectar o Jira.");
+        setStatus("Sessão expirada. Faça login novamente.");
         setStage("error");
         return;
       }
@@ -57,180 +76,246 @@ export default function JiraCallbackPage() {
       const state = extractState();
 
       if (errorParam) {
-        setStatus(`Erro de autorização: ${errorParam}`);
+        setStatus(`O Jira recusou a conexão: ${errorParam}`);
         setStage("error");
         return;
       }
 
       if (!code) {
-        setStatus("Código de autorização ausente. Volte e tente novamente.");
+        setStatus("Código de autorização não encontrado.");
         setStage("error");
         return;
       }
 
+      // Validação de State
       try {
         const stored = window.sessionStorage.getItem("jira_oauth_state");
         if (!stored || !state || stored !== state) {
-          setStatus("Falha de validação do estado. Recomece a autorização.");
+          setStatus("Erro de segurança (state mismatch). Tente novamente.");
           setStage("error");
           return;
         }
       } catch {}
 
+      // Troca de Token
       try {
+        setStatus("Trocando código por token de acesso...");
         const redirectUri =
-          process.env.NEXT_PUBLIC_JIRA_REDIRECT_URI || `${window.location.origin}/jira/callback`;
-        await api.post("/api/integrations/jira/oauth/exchange", { code, redirect_uri: redirectUri });
+          process.env.NEXT_PUBLIC_JIRA_REDIRECT_URI ||
+          `${window.location.origin}/jira/callback`;
+
+        await api.post("/api/integrations/jira/oauth/exchange", {
+          code,
+          redirect_uri: redirectUri,
+        });
+
+        // Buscar Recursos (Sites)
+        setStatus("Buscando sites disponíveis...");
         const r = await api.get("/api/integrations/jira/oauth/resources");
         const list = (r.data?.resources as any[]) || [];
+
         if (list.length > 1) {
-          const mapped = list.map((x: any) => ({ id: String(x.id), url: String(x.url || ""), name: String(x.name || "") }));
+          const mapped = list.map((x: any) => ({
+            id: String(x.id),
+            url: String(x.url || ""),
+            name: String(x.name || ""),
+          }));
           setResources(mapped);
-          setSelectedId("");
-          setStatus("Selecione o site do Jira");
-          setStage("loading");
+          setSelectedId(mapped[0].id); // Seleciona o primeiro por padrão
+          setStatus("Selecione qual site deseja conectar");
+          setStage("selection");
           return;
         }
-        setStatus("Jira conectado com sucesso! Redirecionando...");
+
+        // Se tiver apenas 1 ou nenhum (API vai lidar), finaliza
+        setStatus("Conexão estabelecida com sucesso!");
         setStage("success");
-        toast.success("Jira conectado com sucesso");
-        setTimeout(() => (window.location.href = "/connections"), 1200);
+        toast.success("Jira conectado!");
+        setTimeout(() => (window.location.href = "/connections"), 1500);
       } catch (e: any) {
         const err = e as AxiosRequestError;
-        setStatus(err?.message || "Falha ao conectar ao Jira");
+        setStatus(err?.message || "Falha na comunicação com o Jira");
         setStage("error");
-        toast.error(err?.message || "Falha ao conectar ao Jira");
       }
     }
 
     run();
   }, [authStatus, session]);
 
-  const statusColors = {
-    loading: "text-neutral-700",
-    success: "text-green-600",
-    error: "text-destructive",
-  };
-
-  const statusIcons = {
-    loading: <Loader2 className="h-6 w-6 animate-spin" />,
-    success: <CheckCircle2 className="h-6 w-6" />,
-    error: <XCircle className="h-6 w-6" />,
-  };
-
+  // --- Filtragem da Lista ---
   const filtered = resources.filter((r) => {
     const term = query.trim().toLowerCase();
     if (!term) return true;
     return (
-      String(r.name || "").toLowerCase().includes(term) ||
-      String(r.url || "").toLowerCase().includes(term)
+      String(r.name || "")
+        .toLowerCase()
+        .includes(term) ||
+      String(r.url || "")
+        .toLowerCase()
+        .includes(term)
     );
   });
 
+  // --- Renderização ---
   return (
-    <div className="w-full min-h-[60vh] flex items-center justify-center p-4 md:p-8">
-      <Card className="w-full max-w-lg bg-white shadow-lg rounded-xl hover:shadow-xl transition-shadow">
-        <CardHeader className="space-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <SquareKanban className="h-6 w-6 text-primary" />
-              <CardTitle className="text-xl font-semibold">Integração Jira</CardTitle>
+    <main className="flex min-h-svh flex-col items-center justify-center bg-muted/40 p-6 md:p-10">
+      <Card className="w-full max-w-md border-border/50 shadow-lg">
+        <CardHeader className="items-center text-center space-y-2 pb-2">
+          {/* Ícone Branding */}
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900/30 mb-2">
+            <Puzzle className="h-6 w-6 text-[#3B82F6]" />
+          </div>
+          <CardTitle className="text-xl font-bold">Integração Jira</CardTitle>
+          <CardDescription className="text-center max-w-[90%]">
+            {status}
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent className="pt-4">
+          {/* ESTADO: CARREGANDO */}
+          {stage === "loading" && (
+            <div className="flex flex-col items-center justify-center py-8 gap-4">
+              <Loader2 className="h-10 w-10 text-[#3B82F6] animate-spin" />
+              <p className="text-sm text-muted-foreground animate-pulse">
+                Aguarde um momento...
+              </p>
             </div>
+          )}
+
+          {/* ESTADO: SUCESSO */}
+          {stage === "success" && (
+            <div className="flex flex-col items-center justify-center py-6 gap-4 animate-in fade-in zoom-in duration-300">
+              <div className="rounded-full bg-green-100 p-3">
+                <CheckCircle2 className="h-8 w-8 text-green-600" />
+              </div>
+              <p className="text-center text-sm text-muted-foreground">
+                Você será redirecionado para a página de conexões em instantes.
+              </p>
+            </div>
+          )}
+
+          {/* ESTADO: ERRO */}
+          {stage === "error" && (
+            <div className="flex flex-col items-center justify-center py-4 gap-4 animate-in fade-in zoom-in duration-300">
+              <div className="rounded-full bg-red-100 p-3">
+                <XCircle className="h-8 w-8 text-destructive" />
+              </div>
+              <Button asChild variant="outline" className="mt-2 w-full">
+                <Link href="/connections">
+                  <ArrowRight className="mr-2 h-4 w-4 rotate-180" />
+                  Voltar para Conexões
+                </Link>
+              </Button>
+            </div>
+          )}
+
+          {/* ESTADO: SELEÇÃO */}
+          {stage === "selection" && (
+            <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500">
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Buscar site..."
+                  className="pl-9"
+                />
+              </div>
+
+              <div className="max-h-[200px] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                {filtered.map((r) => {
+                  const active = selectedId === r.id;
+                  return (
+                    <button
+                      key={r.id}
+                      onClick={() => setSelectedId(r.id)}
+                      className={`w-full flex items-center justify-between p-3 rounded-lg border text-left transition-all ${
+                        active
+                          ? "border-[#3B82F6] bg-blue-50/50"
+                          : "border-border hover:bg-muted/50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <div
+                          className={`p-2 rounded-md ${
+                            active ? "bg-white" : "bg-muted"
+                          }`}
+                        >
+                          <Globe
+                            className={`h-4 w-4 ${
+                              active
+                                ? "text-[#3B82F6]"
+                                : "text-muted-foreground"
+                            }`}
+                          />
+                        </div>
+                        <div className="flex flex-col overflow-hidden">
+                          <span
+                            className={`text-sm font-medium truncate ${
+                              active ? "text-[#3B82F6]" : "text-foreground"
+                            }`}
+                          >
+                            {r.name}
+                          </span>
+                          <span className="text-xs text-muted-foreground truncate">
+                            {r.url}
+                          </span>
+                        </div>
+                      </div>
+                      {active && (
+                        <CheckCircle2 className="h-4 w-4 text-[#3B82F6] flex-shrink-0" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </CardContent>
+
+        {/* FOOTER: AÇÕES DE SELEÇÃO */}
+        {stage === "selection" && (
+          <CardFooter className="flex-col gap-2">
             <Button
-              className="gap-2"
-              disabled={resources.length <= 1 || !selectedId}
+              className="w-full gap-2 bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white"
+              disabled={!selectedId}
               onClick={async () => {
                 try {
-                  setStatus("Aplicando site selecionado...");
-                  setStage("loading");
-                  await api.post("/api/integrations/jira/oauth/select", { cloud_id: selectedId });
+                  setStatus("Vinculando site selecionado...");
+                  setStage("loading"); // Volta para loading visualmente
+                  await api.post("/api/integrations/jira/oauth/select", {
+                    cloud_id: selectedId,
+                  });
                   setResources([]);
-                  setStatus("Jira conectado com sucesso! Redirecionando...");
+                  setStatus("Site vinculado! Redirecionando...");
                   setStage("success");
-                  toast.success("Site selecionado");
-                  setTimeout(() => (window.location.href = "/connections"), 1200);
+                  toast.success("Integração concluída");
+                  setTimeout(
+                    () => (window.location.href = "/connections"),
+                    1200
+                  );
                 } catch (e: any) {
                   const err = e as AxiosRequestError;
-                  setStatus(err?.message || "Falha ao selecionar site");
+                  setStatus(err?.message || "Erro ao salvar seleção");
                   setStage("error");
-                  toast.error(err?.message || "Falha ao selecionar site");
+                  toast.error("Falha ao selecionar site");
                 }
               }}
             >
-              Ir para Conexões
+              Confirmar Integração
               <ArrowRight className="h-4 w-4" />
             </Button>
-          </div>
-          <CardDescription className="text-neutral-600">
-            Conecte sua conta Jira para enviar tasks diretamente.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className={`flex items-center justify-center gap-2 ${statusColors[stage]}`}>
-            {statusIcons[stage]}
-            <span className="font-medium text-center">{status}</span>
-          </div>
 
-          <div className="flex flex-col gap-3">
-            {stage === "error" && (
-              <div>
-                <Button variant="outline" onClick={() => window.location.reload()}>
-                  Tentar novamente
-                </Button>
-              </div>
-            )}
-
-            {resources.length > 1 && (
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-2">
-                  <Search className="h-4 w-4 text-neutral-500" />
-                  <Input
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Pesquisar site por nome ou URL"
-                    className="flex-1"
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  {filtered.map((r) => {
-                    const name = r.name || r.url;
-                    const domain = (() => {
-                      try {
-                        const u = new URL(r.url);
-                        return u.hostname;
-                      } catch {
-                        return r.url;
-                      }
-                    })();
-                    const active = selectedId === r.id;
-                    return (
-                      <button
-                        key={r.id}
-                        onClick={() => setSelectedId(r.id)}
-                        className={`w-full text-left rounded-md border p-3 transition-colors ${
-                          active ? "border-primary bg-primary/10" : "border-neutral-200 bg-neutral-50 hover:bg-neutral-100"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-medium">{name}</span>
-                            <span className="text-xs text-neutral-500">{domain}</span>
-                          </div>
-                          <div
-                            className={`size-4 rounded-full ${active ? "bg-primary" : "bg-neutral-300"}`}
-                            aria-hidden="true"
-                          />
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-                {/* ação principal movida para o cabeçalho */}
-              </div>
-            )}
-          </div>
-        </CardContent>
+            <Button
+              variant="ghost"
+              className="w-full text-muted-foreground"
+              asChild
+            >
+              <Link href="/connections">Cancelar</Link>
+            </Button>
+          </CardFooter>
+        )}
       </Card>
-    </div>
+    </main>
   );
 }

@@ -3,7 +3,7 @@ Utilitários e dependências de autenticação.
 """
 import bcrypt
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
@@ -28,7 +28,7 @@ def create_access_token(user_id: int) -> str:
     """Criar um token de acesso JWT"""
     payload = {
         "user_id": user_id,
-        "exp": datetime.utcnow() + timedelta(days=settings.JWT_EXPIRATION_DAYS)
+        "exp": datetime.now(timezone.utc) + timedelta(days=settings.JWT_EXPIRATION_DAYS)
     }
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 

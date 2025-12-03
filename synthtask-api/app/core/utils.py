@@ -4,9 +4,11 @@ Centraliza consultas ao banco e conversões de modelos.
 """
 from typing import Dict, Optional
 from bson import ObjectId
-from datetime import datetime
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from .database import database, users_table, meetings_collection
+from .config import settings
 from ..models import User, ProcessedMeeting, Task
 
 
@@ -154,7 +156,7 @@ async def save_processed_meeting(
         "user_id": user_id,
         "original_text": original_text,
         "tasks": processed_data.get("tasks", []),
-        "created_at": datetime.utcnow(),
+        "created_at": datetime.now(timezone.utc),
         "sent": False,
     }
     
@@ -213,10 +215,16 @@ def format_meeting_response(
     if not meeting_id:
         meeting_id = str(meeting_data.get("_id", ""))
     
+    dt = meeting_data["created_at"]
+    if isinstance(dt, datetime) and dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    tz = ZoneInfo(settings.TIMEZONE)
+    dt_local = dt.astimezone(tz) if isinstance(dt, datetime) else dt
+    created_iso = dt_local.isoformat() if isinstance(dt_local, datetime) else str(dt_local)
     return ProcessedMeeting(
         id=meeting_id,
         tasks=[Task(**task) for task in meeting_data.get("tasks", [])],
-        created_at=meeting_data["created_at"].isoformat(),
+        created_at=created_iso,
         sent=meeting_data.get("sent", meeting_data.get("sent_to_trello", False)),
     )
 

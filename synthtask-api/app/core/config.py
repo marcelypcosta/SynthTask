@@ -36,6 +36,8 @@ class Settings:
     MONGODB_DATABASE: str = "sintask_db"
     MONGODB_COLLECTION: str = "meetings"
 
+    TIMEZONE: str = os.getenv("APP_TIMEZONE", "America/Sao_Paulo")
+
 
 # Global settings instance
 settings = Settings()

@@ -4,7 +4,7 @@ Configuração e conexões de banco de dados para MongoDB e PostgreSQL.
 import sqlalchemy
 from motor.motor_asyncio import AsyncIOMotorClient
 from databases import Database
-from datetime import datetime
+from datetime import datetime, timezone
 
 from .config import settings
 
@@ -25,7 +25,7 @@ users_table = sqlalchemy.Table(
     sqlalchemy.Column("email", sqlalchemy.String, unique=True, nullable=False),
     sqlalchemy.Column("password_hash", sqlalchemy.String, nullable=False),
     sqlalchemy.Column("name", sqlalchemy.String, nullable=False),
-    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=datetime.utcnow),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)),
 )
 
 # Integration credentials table definition (secure storage per provider/user)
@@ -36,7 +36,7 @@ integration_credentials = sqlalchemy.Table(
     sqlalchemy.Column("user_id", sqlalchemy.Integer, nullable=False),
     sqlalchemy.Column("provider", sqlalchemy.String, nullable=False),
     sqlalchemy.Column("data_encrypted", sqlalchemy.Text, nullable=False),
-    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=datetime.utcnow),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)),
     sqlalchemy.UniqueConstraint("user_id", "provider", name="uq_integration_user_provider"),
 )
 
@@ -49,7 +49,7 @@ projects_table = sqlalchemy.Table(
     sqlalchemy.Column("provider", sqlalchemy.String, nullable=False),
     sqlalchemy.Column("target_id", sqlalchemy.String, nullable=False),
     sqlalchemy.Column("target_name", sqlalchemy.String, nullable=True),
-    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=datetime.utcnow),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)),
 )
 
 # SQLAlchemy engine for metadata operations

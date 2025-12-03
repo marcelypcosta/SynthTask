@@ -4,6 +4,9 @@ Rotas de gestão de reuniões e tarefas da Sintask API
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from bson import ObjectId
 from typing import List
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+from ..core.config import settings
 
 from ..models import (
     MeetingText, ProcessedMeeting, Task, TaskUpdate,
@@ -159,16 +162,22 @@ async def process_meeting_file(
 async def get_meetings(current_user: dict = Depends(get_current_user)):
     """Listar todas as reuniões do usuário atual"""
     meetings = await get_user_meetings(current_user["id"])
-    return [
-        {
+    result = []
+    tz = ZoneInfo(settings.TIMEZONE)
+    for meeting in meetings:
+        dt = meeting.get("created_at")
+        if isinstance(dt, datetime) and dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        dt_local = dt.astimezone(tz) if isinstance(dt, datetime) else dt
+        created_iso = dt_local.isoformat() if isinstance(dt_local, datetime) else str(dt_local)
+        result.append({
             "id": str(meeting["_id"]),
             "file_name": meeting.get("file_name"),
-            "created_at": meeting["created_at"].isoformat(),
+            "created_at": created_iso,
             "tasks_count": len(meeting.get("tasks", [])),
             "sent": meeting.get("sent", meeting.get("sent_to_trello", False)),
-        }
-        for meeting in meetings
-    ]
+        })
+    return result
 
 
 @router.get("/{meeting_id}", response_model=ProcessedMeeting)

@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from ..core.auth import get_current_user
 from ..core.database import database, projects_table
+from ..core.config import settings
 
 router = APIRouter(prefix="/api/projects", tags=["Projects"])
 
@@ -11,17 +13,23 @@ router = APIRouter(prefix="/api/projects", tags=["Projects"])
 async def list_projects(current_user: dict = Depends(get_current_user)):
     query = projects_table.select().where(projects_table.c.user_id == current_user["id"]).order_by(projects_table.c.created_at.desc())
     rows = await database.fetch_all(query)
-    return [
-        {
+    result = []
+    tz = ZoneInfo(settings.TIMEZONE)
+    for r in rows:
+        dt = r["created_at"]
+        if isinstance(dt, datetime) and dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        dt_local = dt.astimezone(tz) if isinstance(dt, datetime) else dt
+        created_iso = dt_local.isoformat() if isinstance(dt_local, datetime) else str(dt_local)
+        result.append({
             "id": r["id"],
             "name": r["name"],
             "provider": r["provider"],
             "target_id": r["target_id"],
             "target_name": r["target_name"],
-            "created_at": (r["created_at"].isoformat() if isinstance(r["created_at"], datetime) else str(r["created_at"])),
-        }
-        for r in rows
-    ]
+            "created_at": created_iso,
+        })
+    return result
 
 @router.post("")
 async def create_project(
@@ -59,13 +67,19 @@ async def create_project(
     # Buscar registro recém-criado para montar resposta
     query = projects_table.select().where(projects_table.c.id == project_id)
     r = await database.fetch_one(query)
+    tz = ZoneInfo(settings.TIMEZONE)
+    dt = r["created_at"]
+    if isinstance(dt, datetime) and dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    dt_local = dt.astimezone(tz) if isinstance(dt, datetime) else dt
+    created_iso = dt_local.isoformat() if isinstance(dt_local, datetime) else str(dt_local)
     return {
         "id": r["id"],
         "name": r["name"],
         "provider": r["provider"],
         "target_id": r["target_id"],
         "target_name": r["target_name"],
-        "created_at": (r["created_at"].isoformat() if isinstance(r["created_at"], datetime) else str(r["created_at"])),
+        "created_at": created_iso,
     }
 
 @router.get("/{project_id}")
@@ -76,13 +90,19 @@ async def get_project(project_id: int, current_user: dict = Depends(get_current_
     r = await database.fetch_one(query)
     if not r:
         raise HTTPException(status_code=404, detail="Projeto não encontrado")
+    tz = ZoneInfo(settings.TIMEZONE)
+    dt = r["created_at"]
+    if isinstance(dt, datetime) and dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    dt_local = dt.astimezone(tz) if isinstance(dt, datetime) else dt
+    created_iso = dt_local.isoformat() if isinstance(dt_local, datetime) else str(dt_local)
     return {
         "id": r["id"],
         "name": r["name"],
         "provider": r["provider"],
         "target_id": r["target_id"],
         "target_name": r["target_name"],
-        "created_at": (r["created_at"].isoformat() if isinstance(r["created_at"], datetime) else str(r["created_at"])),
+        "created_at": created_iso,
     }
 
 @router.put("/{project_id}")
@@ -130,13 +150,19 @@ async def update_project(project_id: int, payload: dict, current_user: dict = De
     )
 
     r = await database.fetch_one(q)
+    tz = ZoneInfo(settings.TIMEZONE)
+    dt = r["created_at"]
+    if isinstance(dt, datetime) and dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    dt_local = dt.astimezone(tz) if isinstance(dt, datetime) else dt
+    created_iso = dt_local.isoformat() if isinstance(dt_local, datetime) else str(dt_local)
     return {
         "id": r["id"],
         "name": r["name"],
         "provider": r["provider"],
         "target_id": r["target_id"],
         "target_name": r["target_name"],
-        "created_at": (r["created_at"].isoformat() if isinstance(r["created_at"], datetime) else str(r["created_at"])),
+        "created_at": created_iso,
     }
 
 @router.delete("/{project_id}")

@@ -4,9 +4,15 @@ import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { setAccessToken } from "@/lib/http";
 import { toast } from "sonner";
+import {
+  Loader2,
+  Trash2,
+  FileText,
+  CheckCircle2,
+  History,
+} from "lucide-react";
 
 import { Button } from "@/ui/button";
-import { Loader2 } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -15,9 +21,16 @@ import {
   TableRow,
   TableCell,
 } from "@/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/ui/dialog";
 
 import UploadFileForm from "@/feature/upload/components/upload-file-form";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/ui/dialog";
 import {
   getMeetings,
   MeetingListItem,
@@ -29,8 +42,8 @@ import { formatDate } from "@/lib/meetings";
 export default function UploadsPage() {
   const { data: session, status: authStatus } = useSession();
   const [meetings, setMeetings] = useState<MeetingListItem[]>([]);
+  const [loadingInitial, setLoadingInitial] = useState(true);
 
-  const [error, setError] = useState<string | null>(null);
   const [lastProcessed, setLastProcessed] = useState<ProcessedMeeting | null>(
     null
   );
@@ -48,9 +61,9 @@ export default function UploadsPage() {
         const data = await getMeetings();
         if (mounted) setMeetings(data);
       } catch (e: any) {
-        const msg = e?.message || "Falha ao carregar transcrições";
-        setError(msg);
-        toast.error(msg);
+        toast.error("Falha ao carregar histórico de transcrições");
+      } finally {
+        if (mounted) setLoadingInitial(false);
       }
     }
     load();
@@ -64,11 +77,9 @@ export default function UploadsPage() {
     try {
       await deleteMeeting(id);
       setMeetings((prev) => prev.filter((m) => m.id !== id));
-      toast.success("Transcrição apagada com sucesso");
+      toast.success("Transcrição removida");
     } catch (e: any) {
-      const msg = e?.message || "Falha ao apagar transcrição";
-      setError(msg);
-      toast.error(msg);
+      toast.error("Erro ao apagar transcrição");
     } finally {
       setDeletingId(null);
     }
@@ -76,111 +87,171 @@ export default function UploadsPage() {
 
   const openConfirmDelete = (id: string) => {
     setConfirmId(id);
-    toast.warning("Confirme a exclusão da transcrição.");
     setConfirmOpen(true);
   };
 
   return (
-    <>
-      <div className="w-full">
-        <header className="mb-6 md:mb-8">
-          <h1 className="text-3xl font-semibold text-neutral-800 mt-2">
+    <main className="flex min-h-svh flex-col items-center p-6 md:p-10">
+      <div className="w-full max-w-5xl space-y-10">
+        <header className="flex flex-col gap-2">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
             Upload de Transcrições
           </h1>
-          <p className="text-neutral-600">
-            Analise as transcrições de áudio e veja as tarefas extraídas.
+          <p className="text-lg text-muted-foreground">
+            Envie seus arquivos de áudio transcritos para que nossa IA extraia
+            as tarefas e automatize seu fluxo no Jira e Trello.
           </p>
         </header>
-        {error && <p className="text-destructive mb-4">{error}</p>}
 
-        <UploadFileForm
-          onUploaded={async (processed) => {
-            setLastProcessed(processed);
-            const data = await getMeetings();
-            setMeetings(data);
-            toast.success("Transcrição processada com sucesso");
-          }}
-          onError={(msg) => {
-            setError(msg);
-            toast.error(msg);
-          }}
-        />
+        <div className="grid gap-6">
+          <UploadFileForm
+            onUploaded={async (processed) => {
+              setLastProcessed(processed);
+              const data = await getMeetings();
+              setMeetings(data);
+              toast.success("Arquivo processado com sucesso!");
+            }}
+            onError={(msg) => toast.error(msg)}
+          />
 
-        {lastProcessed && (
-          <div className="w-full mt-4 md:mt-6 p-4 sm:p-5 border rounded-sm bg-neutral-50">
-            <h2 className="text-lg font-semibold text-neutral-800 mb-2">
-              Última transcrição processada
-            </h2>
-            <p className="text-neutral-600 mb-2">
-              Criada em: {formatDate(lastProcessed.created_at)}
-            </p>
-            <p className="text-neutral-600">
-              Tarefas extraídas: {lastProcessed.tasks.length}
+          {lastProcessed && (
+            <div className="animate-in fade-in slide-in-from-top-4 duration-500 rounded-xl border border-green-200 bg-green-50 p-4 dark:bg-green-900/20 dark:border-green-900">
+              <div className="flex items-start gap-4">
+                <div className="rounded-full bg-green-100 p-2 dark:bg-green-900">
+                  <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="font-semibold text-green-900 dark:text-green-300">
+                    Processamento Concluído
+                  </h3>
+                  <p className="text-green-700 dark:text-green-400 text-sm">
+                    Arquivo processado em {formatDate(lastProcessed.created_at)}
+                    . Foram identificadas{" "}
+                    <span className="font-bold">
+                      {lastProcessed.tasks.length} tarefas
+                    </span>
+                    .
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <History className="h-5 w-5 text-muted-foreground" />
+              <h2 className="text-xl font-semibold text-foreground">
+                Histórico de Arquivos
+              </h2>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Gerencie suas transcrições anteriores e verifique o status de
+              envio.
             </p>
           </div>
-        )}
 
-        <div className="w-full mt-4 md:mt-6">
-          <h2 className="text-lg font-semibold text-neutral-800 mb-2">
-            Transcrições processadas
-          </h2>
-          <Table className="border border-neutral-300 rounded-sm">
-            <TableHeader className="bg-neutral-100">
-              <TableRow>
-                <TableHead className="w-[50%]">Transcrições</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Status de Envio</TableHead>
-                <TableHead className="text-right">Tarefas</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {meetings.map((m) => (
-                <TableRow key={m.id}>
-                  <TableCell className="font-medium">
-                    {m.file_name || "(Arquivo sem nome)"}
-                  </TableCell>
-                  <TableCell>{formatDate(m.created_at)}</TableCell>
-                  <TableCell>
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs ${m.sent ? "bg-green-100 text-green-700" : "bg-neutral-200 text-neutral-700"}`}>
-                      {m.sent ? "Enviado" : "Pendente"}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">{m.tasks_count}</TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      className="bg-destructive/10 hover:bg-destructive/20 text-destructive gap-2"
-                      disabled={deletingId === m.id}
-                      onClick={() => openConfirmDelete(m.id)}
-                    >
-                      {deletingId === m.id ? (
+          <div className="rounded-md border bg-white shadow-sm overflow-hidden">
+            <Table>
+              <TableHeader className="bg-muted/30">
+                <TableRow className="hover:bg-muted/30">
+                  <TableHead className="w-[40%]">Arquivo</TableHead>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Tarefas</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loadingInitial ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center">
+                      <div className="flex items-center justify-center gap-2 text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : null}
-                      Apagar
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {meetings.length === 0 && (
-                <TableRow>
-                  <TableCell className="text-neutral-600" colSpan={5}>
-                    Nenhuma transcrição processada ainda.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                        Carregando histórico...
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : meetings.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={5}
+                      className="h-24 text-center text-muted-foreground"
+                    >
+                      Nenhuma transcrição encontrada. Faça seu primeiro upload
+                      acima.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  meetings.map((m) => (
+                    <TableRow key={m.id} className="hover:bg-muted/30">
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className="rounded-md bg-blue-50 p-2 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
+                            <FileText className="h-4 w-4" />
+                          </div>
+                          <span className="font-medium text-foreground">
+                            {m.file_name || "Sem nome"}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {formatDate(m.created_at)}
+                      </TableCell>
+                      <TableCell>
+                        <div
+                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium border ${
+                            m.sent
+                              ? "border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-900/30 dark:text-green-400"
+                              : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-900/30 dark:text-amber-400"
+                          }`}
+                        >
+                          {m.sent ? "Enviado" : "Pendente"}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {m.tasks_count}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          disabled={deletingId === m.id}
+                          onClick={() => openConfirmDelete(m.id)}
+                        >
+                          {deletingId === m.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                          <span className="sr-only">Apagar</span>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       </div>
 
-      <Dialog open={confirmOpen} onOpenChange={(o) => setConfirmOpen(o)}>
+      {/* Dialog de Confirmação */}
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Apagar transcrição</DialogTitle>
+            <DialogTitle>Excluir Transcrição</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja remover este arquivo do histórico? As
+              tarefas geradas não serão apagadas das ferramentas conectadas.
+            </DialogDescription>
           </DialogHeader>
-          <p className="text-sm text-neutral-600">Tem certeza que deseja apagar esta transcrição?</p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
+              Cancelar
+            </Button>
             <Button
               variant="destructive"
               onClick={async () => {
@@ -189,11 +260,11 @@ export default function UploadsPage() {
                 setConfirmId(null);
               }}
             >
-              Confirmar
+              Excluir permanentemente
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </main>
   );
 }

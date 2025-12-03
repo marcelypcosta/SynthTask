@@ -35,7 +35,7 @@ export default function DashboardPage() {
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
-          <Card className="border-border/50 shadow-lg flex flex-col">
+          <Card className="border-border/50 shadow-lg flex flex-col bg-white">
             <CardHeader>
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 rounded-lg bg-blue-100/50 dark:bg-blue-900/20">
@@ -62,7 +62,7 @@ export default function DashboardPage() {
                 <span className="font-medium">Jira</span>
               </div>
 
-              <div className="rounded-lg border border-dashed border-muted-foreground/30 p-3 flex items-center justify-center gap-2 bg-muted/20 text-muted-foreground">
+              <div className="rounded-lg border border-dashed border-muted-foreground/30 p-3 flex items-center justify-center gap-2 bg-black/5 text-muted-foreground">
                 <span className="text-sm font-medium">Mais em breve</span>
               </div>
             </CardContent>
@@ -79,7 +79,7 @@ export default function DashboardPage() {
             </CardFooter>
           </Card>
 
-          <Card className="border-border/50 shadow-lg flex flex-col">
+          <Card className="border-border/50 shadow-lg flex flex-col bg-white">
             <CardHeader>
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 rounded-lg bg-blue-100/50 dark:bg-blue-900/20">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, FolderOpen, Search, FolderPlus } from "lucide-react";
+import { Plus, FolderOpen, FolderPlus, Search } from "lucide-react";
 
 import {
   Dialog,
@@ -24,6 +24,8 @@ function providerLabel(p: string) {
 
 export default function MyProjectsPage() {
   const [open, setOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+
   const { projects, handleCreated, handleDelete, ConfirmDeleteModal } =
     useProjectsList();
 
@@ -49,14 +51,15 @@ export default function MyProjectsPage() {
                 Novo Projeto
               </Button>
             </DialogTrigger>
-            <DialogContent>
+
+            <DialogContent className="sm:max-w-[600px]">
               <DialogHeader>
                 <DialogTitle>Criar Novo Projeto</DialogTitle>
                 <DialogDescription>
-                  Configure a integração entre suas reuniões e o quadro de
-                  tarefas.
+                  Selecione a ferramenta e configure o destino das tarefas.
                 </DialogDescription>
               </DialogHeader>
+
               <CreateNewProjectForm
                 onCreated={(p) => {
                   handleCreated(p);
@@ -96,10 +99,15 @@ export default function MyProjectsPage() {
                 projectName={p.name}
                 boardName={p.target_name ?? ""}
                 toolName={providerLabel(p.provider)}
-                provider={p.provider} 
+                provider={p.provider}
                 onDelete={handleDelete}
               />
             ))}
+            {projects.length === 0 && searchTerm && (
+              <div className="col-span-full py-12 text-center text-muted-foreground">
+                Nenhum projeto encontrado com o nome "{searchTerm}".
+              </div>
+            )}
           </div>
         )}
       </div>

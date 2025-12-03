@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Label } from "@/ui/label";
 import { Input } from "@/ui/input";
 import { Button } from "@/ui/button";
@@ -12,11 +13,11 @@ export default function SignInForm() {
     useSignIn();
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="grid gap-4">
       {error && (
-        <p className="text-destructive text-sm" aria-live="polite">
+        <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive font-medium text-center">
           {error}
-        </p>
+        </div>
       )}
 
       <div className="grid gap-2">
@@ -28,13 +29,22 @@ export default function SignInForm() {
           value={formData.email}
           onChange={handleChange}
           autoComplete="email"
-          placeholder="seu@email.com"
+          placeholder="nome@exemplo.com"
           required
+          className="h-10 bg-white"
         />
       </div>
 
       <div className="grid gap-2">
-        <Label htmlFor="password">Senha</Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="password">Senha</Label>
+          <Link
+            href="/forgot-password"
+            className="text-xs text-muted-foreground underline-offset-4 hover:underline hover:text-primary"
+          >
+            Esqueceu a senha?
+          </Link>
+        </div>
         <Input
           type="password"
           id="password"
@@ -44,12 +54,17 @@ export default function SignInForm() {
           autoComplete="current-password"
           placeholder="******"
           required
+          className="h-10 bg-white"
         />
       </div>
 
-      <Button type="submit" disabled={isLoading} className="w-full gap-2">
+      <Button
+        type="submit"
+        disabled={isLoading}
+        className="w-full h-10 gap-2 bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white font-medium"
+      >
         {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-        {isLoading ? "Carregando..." : "Entrar"}
+        {isLoading ? "Entrando..." : "Entrar"}
       </Button>
     </form>
   );

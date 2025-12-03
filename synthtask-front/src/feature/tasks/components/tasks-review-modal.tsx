@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Trash2, Save, Plus } from "lucide-react";
 
 import {
   Dialog,
@@ -8,10 +9,13 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/ui/dialog";
+import { Button } from "@/ui/button";
 import { Input } from "@/ui/input";
+import { Textarea } from "@/ui/textarea";
 import { Skeleton } from "@/ui/skeleton";
-import { Field, FieldContent, FieldLabel } from "@/ui/field";
+import { Label } from "@/ui/label";
 import {
   Select,
   SelectContent,
@@ -19,11 +23,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/ui/select";
-
-import TaskDeleteButton from "@/feature/tasks/components/task-delete-button";
-import TaskSaveChangeButton from "@/feature/tasks/components/task-save-change-button";
-import CreateNewTaskButton from "@/feature/tasks/components/create-new-task-button";
-import SendTasksButton from "@/feature/tasks/components/send-tasks-button";
 
 import type { Task } from "@/lib/meetings-api";
 import { markMeetingSent } from "@/lib/meetings-api";
@@ -40,7 +39,9 @@ import useMeetingReview from "@/feature/tasks/hooks/use-tasks-review";
 import useDeleteTask from "@/feature/tasks/hooks/use-delete-task";
 import useSaveChangeTask from "@/feature/tasks/hooks/use-save-change-task";
 import useCreateNewTask from "@/feature/tasks/hooks/use-create-new-task";
+import { toast } from "sonner";
 
+// ... (Tipos e Props mantidos)
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -69,7 +70,6 @@ export default function TasksReviewModal({
   const [membersLoading, setMembersLoading] = useState(false);
   const [jiraUsers, setJiraUsers] = useState<JiraUser[]>([]);
   const [jiraLoading, setJiraLoading] = useState(false);
-  const [jiraRoleName, setJiraRoleName] = useState<string | null>(null);
 
   const normalize = (s: string) =>
     (s || "")
@@ -92,6 +92,7 @@ export default function TasksReviewModal({
     );
   };
 
+  // ... (Efeitos de loadMembers e loadRoleActorsOnly mantidos idênticos) ...
   useEffect(() => {
     async function loadMembers() {
       if (!open) return;
@@ -141,7 +142,6 @@ export default function TasksReviewModal({
       setJiraLoading(true);
       try {
         const roles = await listJiraProjectRoles(String(targetId));
-        // Preferir exatamente Administrator; fallback para Member; senão primeiro disponível
         const preferred =
           roles.find((r) => r.name.toLowerCase() === "administrator") ||
           roles.find((r) => r.name.toLowerCase() === "member") ||
@@ -151,7 +151,6 @@ export default function TasksReviewModal({
             String(targetId),
             preferred.id
           );
-          setJiraRoleName(preferred.name);
           setJiraUsers(users);
           setTasks((prev) =>
             prev.map((t) => {
@@ -186,239 +185,262 @@ export default function TasksReviewModal({
     const res = await deleteTask(meetingId, taskId);
     if (res.success) {
       setTasks((prev) => prev.filter((t) => t.id !== taskId));
+      toast.success("Task removida");
     }
   };
+
+  const SendButtonComponent =
+    require("@/feature/tasks/components/send-tasks-button").default;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-3xl w-full max-h-[85vh] overflow-y-auto"
+        className="max-w-xl w-full h-[90vh] flex flex-col p-0 gap-0 overflow-hidden" 
         aria-describedby="meeting-review-description"
       >
-        <DialogHeader>
-          <DialogTitle>Tarefas identificadas</DialogTitle>
-          <DialogDescription id="meeting-review-description">
-            Acompanhe e, quando necessário, edite, exclua ou crie novas tasks.
-          </DialogDescription>
-        </DialogHeader>
-
-        {loading && (
-          <div className="space-y-3">
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-24 w-full" />
-          </div>
-        )}
-
-        <div className="flex items-center justify-between">
-          {!loading && (
-            <p className="text-sm text-zinc-500">
-              {tasks.length} tasks identificadas.
-            </p>
-          )}
-
-          {!loading && (
-            <div className="flex justify-end">
-              <CreateNewTaskButton
+        {/* Header Fixo */}
+        <DialogHeader className="p-6 pb-4 border-b">
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col items-start">
+              <DialogTitle className="text-xl">Revisão de Tarefas</DialogTitle>
+              <DialogDescription
+                id="meeting-review-description"
+                className="mt-1"
+              >
+                Revise os dados antes de enviar.
+              </DialogDescription>
+            </div>
+            {!loading && (
+              <Button
+                size="sm"
+                variant="outline"
                 onClick={async () => {
                   if (!meetingId) return;
                   const res = await addTask(meetingId);
-                  if (res.success && res.task) {
+                  if (res.success && res.task)
                     setTasks((prev) => [res.task!, ...prev]);
-                  }
                 }}
-                disabled={creating}
-                loading={creating}
-              />
+                disabled={creating || sentFlag}
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" /> Nova Task
+              </Button>
+            )}
+          </div>
+        </DialogHeader>
+
+        {/* Corpo com Scroll */}
+        <div className="flex-1 overflow-y-auto bg-muted/30 p-6">
+          {loading && (
+            <div className="space-y-4">
+              <Skeleton className="h-48 w-full rounded-xl" />
+              <Skeleton className="h-48 w-full rounded-xl" />
             </div>
           )}
-        </div>
 
-        {!loading && (
-          <div className="flex flex-col gap-4 md:gap-6">
-            {tasks.length > 0 &&
-              tasks.map((t) => (
+          {!loading && (
+            <div className="space-y-6">
+              {tasks.length === 0 && (
+                <div className="text-center py-10 text-muted-foreground">
+                  Nenhuma tarefa encontrada.
+                </div>
+              )}
+
+              {tasks.map((t) => (
                 <div
                   key={t.id}
-                  className="flex flex-col items-end space-y-3 sm:space-y-4 rounded-md border p-3 sm:p-4 transition-shadow hover:shadow-sm bg-slate-50"
+                  className="bg-white rounded-xl border border-border/60 shadow-sm p-5 transition-all hover:border-primary/30 group space-y-4"
                 >
-                  <Field>
-                    <FieldLabel>Tarefa</FieldLabel>
-                    <FieldContent>
-                      <Input
-                        className="bg-white"
-                        value={t.title}
-                        onChange={(e) =>
-                          updateLocalTask(t.id, { title: e.target.value })
-                        }
-                      />
-                    </FieldContent>
-                  </Field>
+                  {/* Título */}
+                  <div className="space-y-1.5">
+                    <Label
+                      htmlFor={`title-${t.id}`}
+                      className="text-xs font-semibold text-muted-foreground uppercase"
+                    >
+                      Título
+                    </Label>
+                    <Input
+                      id={`title-${t.id}`}
+                      value={t.title}
+                      onChange={(e) =>
+                        updateLocalTask(t.id, { title: e.target.value })
+                      }
+                      className="font-medium bg-transparent border border-input focus:border-primary h-9"
+                      placeholder="Título da tarefa"
+                    />
+                  </div>
 
-                  <Field>
-                    <FieldLabel>Descrição</FieldLabel>
-                    <FieldContent>
-                      <Input
-                        className="bg-white"
-                        value={t.description ?? ""}
-                        onChange={(e) =>
-                          updateLocalTask(t.id, {
-                            description: e.target.value,
-                          })
-                        }
-                      />
-                    </FieldContent>
-                  </Field>
+                  {/* Descrição */}
+                  <div className="space-y-1.5">
+                    <Label
+                      htmlFor={`desc-${t.id}`}
+                      className="text-xs font-semibold text-muted-foreground uppercase"
+                    >
+                      Descrição
+                    </Label>
+                    <Textarea
+                      id={`desc-${t.id}`}
+                      value={t.description ?? ""}
+                      onChange={(e) =>
+                        updateLocalTask(t.id, { description: e.target.value })
+                      }
+                      className="min-h-[100px] bg-neutral-50/50 resize-y text-sm"
+                      placeholder="Adicione detalhes..."
+                    />
+                  </div>
 
-                  <Field>
-                    <FieldLabel>Responsável</FieldLabel>
-                    <FieldContent>
-                      {provider === "trello" ? (
-                        members.length > 0 ? (
-                          <Select
-                            value={t.assignee ?? ""}
-                            onValueChange={(val) =>
-                              updateLocalTask(t.id, { assignee: val })
-                            }
-                            disabled={membersLoading || !trelloBoardId}
-                          >
-                            <SelectTrigger className="bg-white">
-                              <SelectValue
-                                placeholder={
-                                  membersLoading
-                                    ? "Carregando..."
-                                    : "Selecione o responsável"
-                                }
-                              />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {members.map((m) => (
-                                <SelectItem key={m.id} value={m.id}>
-                                  {m.fullName || m.username || m.id}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <Input
-                            className="bg-white"
-                            value={t.assignee ?? ""}
-                            onChange={(e) =>
-                              updateLocalTask(t.id, {
-                                assignee: e.target.value,
-                              })
-                            }
-                          />
-                        )
-                      ) : provider === "jira" ? (
-                        jiraUsers.some(
-                          (u) => u.accountId === (t.assignee || "").trim()
-                        ) ? (
-                          <Select
-                            value={t.assignee ?? ""}
-                            onValueChange={(val) =>
-                              updateLocalTask(t.id, { assignee: val })
-                            }
-                            disabled={jiraLoading || !targetId}
-                          >
-                            <SelectTrigger className="bg-white">
-                              <SelectValue
-                                placeholder={
-                                  jiraLoading
-                                    ? "Carregando..."
-                                    : jiraUsers.length === 0
-                                    ? "Nenhum usuário disponível"
-                                    : "Selecione o responsável"
-                                }
-                              />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {jiraUsers.map((u) => (
-                                <SelectItem
-                                  key={u.accountId}
-                                  value={u.accountId}
-                                >
-                                  {u.displayName || u.accountId}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <Input
-                            className="bg-white"
-                            value={t.assignee ?? ""}
-                            onChange={(e) =>
-                              updateLocalTask(t.id, {
-                                assignee: e.target.value,
-                              })
-                            }
-                          />
-                        )
+                  {/* Responsável */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase">
+                      Responsável
+                    </Label>
+                    {provider === "trello" ? (
+                      members.length > 0 ? (
+                        <Select
+                          value={t.assignee ?? ""}
+                          onValueChange={(val) =>
+                            updateLocalTask(t.id, { assignee: val })
+                          }
+                          disabled={membersLoading || !trelloBoardId}
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue
+                              placeholder={
+                                membersLoading
+                                  ? "Carregando..."
+                                  : "Selecione..."
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {members.map((m) => (
+                              <SelectItem key={m.id} value={m.id}>
+                                {m.fullName || m.username}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       ) : (
                         <Input
-                          className="bg-white"
                           value={t.assignee ?? ""}
                           onChange={(e) =>
                             updateLocalTask(t.id, { assignee: e.target.value })
                           }
                         />
-                      )}
-                    </FieldContent>
-                  </Field>
-
-                  <Field>
-                    <FieldLabel>Data de Entrega</FieldLabel>
-                    <FieldContent>
+                      )
+                    ) : provider === "jira" ? (
+                      <Select
+                        value={t.assignee ?? ""}
+                        onValueChange={(val) =>
+                          updateLocalTask(t.id, { assignee: val })
+                        }
+                        disabled={jiraLoading || !targetId}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue
+                            placeholder={
+                              jiraLoading ? "Carregando..." : "Selecione..."
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {jiraUsers.map((u) => (
+                            <SelectItem key={u.accountId} value={u.accountId}>
+                              {u.displayName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
                       <Input
-                        className="bg-white"
-                        type="date"
-                        value={t.due_date ?? ""}
+                        value={t.assignee ?? ""}
                         onChange={(e) =>
-                          updateLocalTask(t.id, {
-                            due_date: e.target.value || null,
-                          })
+                          updateLocalTask(t.id, { assignee: e.target.value })
                         }
                       />
-                    </FieldContent>
-                  </Field>
-                  <div className="flex gap-2">
-                    <TaskSaveChangeButton
+                    )}
+                  </div>
+
+                  {/* Prazo */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase">
+                      Prazo
+                    </Label>
+                    <Input
+                      type="date"
+                      value={t.due_date ?? ""}
+                      onChange={(e) =>
+                        updateLocalTask(t.id, {
+                          due_date: e.target.value || null,
+                        })
+                      }
+                      className="h-9"
+                    />
+                  </div>
+
+                  {/* Ações (Botões Lado a Lado) */}
+                  <div className="pt-2 flex gap-3">
+                    <Button
+                      size="sm"
+                      className="flex-1 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700"
                       onClick={async () => {
                         if (!meetingId) return;
                         const res = await saveTask(meetingId, t);
-                        res.success;
+                        if (res.success) toast.success("Salvo");
                       }}
                       disabled={saving}
-                    />
-                    <TaskDeleteButton
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      Salvar Alterações
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 text-destructive hover:text-destructive border-destructive/20 hover:bg-destructive/10"
                       onClick={() => handleDelete(t.id)}
                       disabled={deleting}
-                    />
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Excluir
+                    </Button>
                   </div>
                 </div>
               ))}
-            <div className="flex items-center justify-between">
-              <div className="flex justify-end">
-                {provider &&
-                (provider === "trello"
-                  ? Boolean(targetId)
-                  : Boolean(targetId)) ? (
-                  <SendTasksButton
-                    tasks={tasks}
-                    provider={provider}
-                    targetId={String(targetId)}
-                    disabled={sentFlag}
-                    onSent={async () => {
-                      if (!meetingId) return;
-                      await markMeetingSent(meetingId);
-                      setSentFlag(true);
-                    }}
-                  />
-                ) : null}
-              </div>
             </div>
+          )}
+        </div>
+
+        {/* Footer Fixo */}
+        <DialogFooter className="p-4 border-t bg-white flex justify-between items-center sm:justify-between">
+          <div className="text-xs text-muted-foreground hidden sm:block">
+            {tasks.length} tasks prontas
           </div>
-        )}
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button
+              variant="outline"
+              className="flex-1 sm:flex-none"
+              onClick={() => onOpenChange(false)}
+            >
+              Fechar
+            </Button>
+            {provider && (
+              <SendButtonComponent
+                tasks={tasks}
+                provider={provider}
+                targetId={String(targetId)}
+                disabled={sentFlag}
+                onSent={async () => {
+                  if (!meetingId) return;
+                  await markMeetingSent(meetingId);
+                  setSentFlag(true);
+                  toast.success("Enviado com sucesso!");
+                  onOpenChange(false);
+                }}
+                className="bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white gap-2 flex-1 sm:flex-none"
+              />
+            )}
+          </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

@@ -1,12 +1,9 @@
 "use client";
 
 import * as React from "react";
-
 import {
   Folders,
   LayoutDashboard,
-  LogOut,
-  Settings,
   UploadIcon,
   Workflow,
   Zap,
@@ -18,9 +15,8 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuButton,
   SidebarMenuItem,
-  SidebarTrigger,
+  SidebarMenuButton, 
 } from "@/ui/sidebar";
 
 import { NavMain } from "@/components/navbar/nav-main";
@@ -29,9 +25,9 @@ import { NavSecondary } from "@/components/navbar/nav-secondary";
 
 const data = {
   user: {
-    name: "Nome Completo",
-    email: "email@exemplo.com",
-    avatar: "/avatars/shadcn.jpg",
+    name: "Usuário",
+    email: "usuario@synthtask.com",
+    avatar: "",
   },
   navMain: [
     {
@@ -59,30 +55,37 @@ const data = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
-    <Sidebar collapsible="icon" {...props}>
+    <Sidebar
+      collapsible="icon"
+      className="border-r border-border/50"
+      {...props}
+    >
       <SidebarHeader>
-        <SidebarMenu className="flex flex-row justify-between items-center">
-          <SidebarMenuItem className="flex items-center gap-2">
-            <div className="bg-primary text-primary-foreground p-1.5 rounded-md">
-              <Zap className="!size-5" />
-            </div>
-            <div className="flex flex-col group-data-[collapsible=icon]:hidden">
-              <span className="text-md font-semibold">SynthTask</span>
-              <span className="text-xs text-muted-foreground">Automação Inteligente</span>
-            </div>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              size="lg"
+              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground hover:bg-transparent"
+            >
+              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-[#3B82F6] text-white">
+                <Zap className="size-4 fill-white" />
+              </div>
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-bold">SynthTask</span>
+                <span className="truncate text-xs text-muted-foreground">
+                  Automação Inteligente
+                </span>
+              </div>
+            </SidebarMenuButton>
           </SidebarMenuItem>
-          <SidebarTrigger className="ml-2"/>
         </SidebarMenu>
       </SidebarHeader>
+
       <SidebarContent>
-        <NavMain
-          items={data.navMain.map((item) => ({ ...item, icon: <item.icon /> }))}
-        />
-        <NavSecondary
-        
-          className="mt-auto"
-        />
+        <NavMain items={data.navMain} />
+        <NavSecondary className="mt-auto" />
       </SidebarContent>
+
       <SidebarFooter>
         <NavUser user={data.user} />
       </SidebarFooter>

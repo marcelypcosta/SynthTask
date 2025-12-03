@@ -1,7 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-
+import * as React from "react";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -12,11 +11,10 @@ import LogoutButton from "./logout";
 
 export function NavSecondary({
   ...props
-}: {
-} & React.ComponentPropsWithoutRef<typeof SidebarGroup>) {
+}: React.ComponentPropsWithoutRef<typeof SidebarGroup>) {
   return (
     <SidebarGroup {...props}>
-      <SidebarGroupContent className="bg-[#F8FAFC]">
+      <SidebarGroupContent>
         <SidebarMenu>
           <SidebarMenuItem>
             <LogoutButton />

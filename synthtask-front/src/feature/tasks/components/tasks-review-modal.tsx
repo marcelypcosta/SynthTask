@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Trash2, Save, Plus } from "lucide-react";
+import { Trash2, Save, Plus, Loader2 } from "lucide-react"; // Adicionei Loader2
 
 import {
   Dialog,
@@ -41,7 +41,6 @@ import useSaveChangeTask from "@/feature/tasks/hooks/use-save-change-task";
 import useCreateNewTask from "@/feature/tasks/hooks/use-create-new-task";
 import { toast } from "sonner";
 
-// ... (Tipos e Props mantidos)
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -63,9 +62,13 @@ export default function TasksReviewModal({
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const { deleting, deleteTask } = useDeleteTask();
-  const { saving, saveTask } = useSaveChangeTask();
+  const { saveTask } = useSaveChangeTask(); // Removi 'saving' global daqui
   const { creating, addTask } = useCreateNewTask();
   const [sentFlag, setSentFlag] = useState<boolean>(false);
+
+  // Novo estado para controlar qual tarefa específica está sendo salva
+  const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
+
   const [members, setMembers] = useState<TrelloMember[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
   const [jiraUsers, setJiraUsers] = useState<JiraUser[]>([]);
@@ -92,7 +95,6 @@ export default function TasksReviewModal({
     );
   };
 
-  // ... (Efeitos de loadMembers e loadRoleActorsOnly mantidos idênticos) ...
   useEffect(() => {
     async function loadMembers() {
       if (!open) return;
@@ -189,19 +191,32 @@ export default function TasksReviewModal({
     }
   };
 
+  // Helper para salvar com loading individual
+  const handleSaveIndividual = async (task: Task) => {
+    if (!meetingId) return;
+    setSavingTaskId(task.id); // Ativa loading apenas para este card
+    try {
+      const res = await saveTask(meetingId, task);
+      if (res.success) toast.success("Salvo com sucesso");
+    } catch (e) {
+      toast.error("Erro ao salvar");
+    } finally {
+      setSavingTaskId(null); // Desativa loading
+    }
+  };
+
   const SendButtonComponent =
     require("@/feature/tasks/components/send-tasks-button").default;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-xl w-full h-[90vh] flex flex-col p-0 gap-0 overflow-hidden" 
+        className="max-w-xl w-full h-[90vh] flex flex-col p-0 gap-0 overflow-hidden"
         aria-describedby="meeting-review-description"
       >
-        {/* Header Fixo */}
         <DialogHeader className="p-6 pb-4 border-b">
           <div className="flex items-center justify-between">
-            <div className="flex flex-col items-start">
+            <div>
               <DialogTitle className="text-xl">Revisão de Tarefas</DialogTitle>
               <DialogDescription
                 id="meeting-review-description"
@@ -229,7 +244,6 @@ export default function TasksReviewModal({
           </div>
         </DialogHeader>
 
-        {/* Corpo com Scroll */}
         <div className="flex-1 overflow-y-auto bg-muted/30 p-6">
           {loading && (
             <div className="space-y-4">
@@ -251,7 +265,6 @@ export default function TasksReviewModal({
                   key={t.id}
                   className="bg-white rounded-xl border border-border/60 shadow-sm p-5 transition-all hover:border-primary/30 group space-y-4"
                 >
-                  {/* Título */}
                   <div className="space-y-1.5">
                     <Label
                       htmlFor={`title-${t.id}`}
@@ -270,7 +283,6 @@ export default function TasksReviewModal({
                     />
                   </div>
 
-                  {/* Descrição */}
                   <div className="space-y-1.5">
                     <Label
                       htmlFor={`desc-${t.id}`}
@@ -289,7 +301,6 @@ export default function TasksReviewModal({
                     />
                   </div>
 
-                  {/* Responsável */}
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-muted-foreground uppercase">
                       Responsável
@@ -303,7 +314,7 @@ export default function TasksReviewModal({
                           }
                           disabled={membersLoading || !trelloBoardId}
                         >
-                          <SelectTrigger className="h-9">
+                          <SelectTrigger className="w-full h-9">
                             <SelectValue
                               placeholder={
                                 membersLoading
@@ -336,7 +347,7 @@ export default function TasksReviewModal({
                         }
                         disabled={jiraLoading || !targetId}
                       >
-                        <SelectTrigger className="h-9">
+                        <SelectTrigger className="w-full h-9">
                           <SelectValue
                             placeholder={
                               jiraLoading ? "Carregando..." : "Selecione..."
@@ -361,7 +372,6 @@ export default function TasksReviewModal({
                     )}
                   </div>
 
-                  {/* Prazo */}
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-muted-foreground uppercase">
                       Prazo
@@ -378,20 +388,22 @@ export default function TasksReviewModal({
                     />
                   </div>
 
-                  {/* Ações (Botões Lado a Lado) */}
                   <div className="pt-2 flex gap-3">
                     <Button
                       size="sm"
                       className="flex-1 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700"
-                      onClick={async () => {
-                        if (!meetingId) return;
-                        const res = await saveTask(meetingId, t);
-                        if (res.success) toast.success("Salvo");
-                      }}
-                      disabled={saving}
+                      onClick={() => handleSaveIndividual(t)}
+                      // Aqui está a correção: desabilita APENAS se o savingTaskId for igual ao ID desta task
+                      disabled={savingTaskId === t.id}
                     >
-                      <Save className="h-4 w-4 mr-2" />
-                      Salvar Alterações
+                      {savingTaskId === t.id ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4 mr-2" />
+                      )}
+                      {savingTaskId === t.id
+                        ? "Salvando..."
+                        : "Salvar Alterações"}
                     </Button>
                     <Button
                       size="sm"
@@ -410,7 +422,6 @@ export default function TasksReviewModal({
           )}
         </div>
 
-        {/* Footer Fixo */}
         <DialogFooter className="p-4 border-t bg-white flex justify-between items-center sm:justify-between">
           <div className="text-xs text-muted-foreground hidden sm:block">
             {tasks.length} tasks prontas

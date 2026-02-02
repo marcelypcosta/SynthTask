@@ -44,8 +44,8 @@ Infra atual:
 - IA: Gemini 2.5 Flash  
 - Deploy: **Render**
 
-### **Bancos**
-- **PostgreSQL (Render)** — dados estruturados  
+### **Bancos de Dados**
+- **PostgreSQL (Neon)** — dados estruturados (Serverless)
 - **MongoDB Atlas** — transcrições e logs
 
 ---
@@ -67,7 +67,7 @@ GEMINI_API_KEY=CHAVE_AQUI
 JWT_SECRET=chave_secreta_jwt
 ENCRYPTION_SECRET=chave_para_criptografia
 
-# Banco (dev com docker)
+# Banco de Dados
 DATABASE_URL=postgresql://sintask:sintask123@postgres:5432/sintask
 MONGODB_URL=mongodb://mongodb:27017
 
@@ -75,28 +75,34 @@ MONGODB_URL=mongodb://mongodb:27017
 JIRA_CLIENT_ID=...
 JIRA_CLIENT_SECRET=...
 JIRA_REDIRECT_URI=http://localhost:3000/jira/callback
+```
 
-# Subir a stack
+### 3. Subir Stack
 
 ```bash
 docker compose up -d
 ```
 
-### 3. Serviços locais:
+### 4. Serviços locais:
 
-* Frontend: http://localhost:3000
-* API Docs: http://localhost:8000/docs
-* Mongo Express: http://localhost:8082
-* PgAdmin: http://localhost:5051
+Frontend: http://localhost:3000
 
----
+API Docs: http://localhost:8000/docs
+
+Mongo Express: http://localhost:8082
+
+PgAdmin: http://localhost:5051
 
 ### 👥 Equipe
+
 Trabalho desenvolvido no Centro Universitário de João Pessoa — UNIPÊ (2025.2)
 
-* Marcely Pereira Costa
-* Guilherme Vitório R. De Carvalho
-* Arthur Vinícius De A. Pimentel
-* Orientação: Prof. Ricardo Roberto De Lima
+Marcely Pereira Costa
+
+Guilherme Vitório R. De Carvalho
+
+Arthur Vinícius De A. Pimentel
+
+Orientação: Prof. Ricardo Roberto De Lima
 
 <div align="center"> <sub>SynthTask © 2025 — Automação inteligente para equipes ágeis</sub> </div>

@@ -41,11 +41,11 @@ Infra atual:
 
 ### **Backend**
 - FastAPI (Python 3.10)  
-- IA: Gemini 2.5 Flash  
+- IA: Gemini 3 Flash Preview
 - Deploy: **Render**
 
 ### **Bancos de Dados**
-- **PostgreSQL (Neon)** — dados estruturados (Serverless)
+- **PostgreSQL (Neon)** — dados dos usuários
 - **MongoDB Atlas** — transcrições e logs
 
 ---
